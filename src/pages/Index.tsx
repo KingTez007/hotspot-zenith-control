@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
 import { UserMonitoring } from "@/components/UserMonitoring";
@@ -35,7 +35,7 @@ const Index = () => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gray-50">
+      <div className="min-h-screen flex w-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-400">
         <Sidebar activeView={activeView} onViewChange={setActiveView} />
         <main className="flex-1 overflow-auto">
           {renderActiveView()}

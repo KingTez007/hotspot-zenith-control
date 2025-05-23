@@ -34,14 +34,14 @@ export const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
 
   return (
     <div className={cn(
-      "bg-white border-r border-gray-200 flex flex-col transition-all duration-300",
+      "bg-white/95 backdrop-blur-sm shadow-xl flex flex-col transition-all duration-300",
       isCollapsed ? "w-16" : "w-64"
     )}>
       {/* Header */}
       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
         {!isCollapsed && (
           <div className="flex items-center space-x-2">
-            <div className="bg-blue-600 p-2 rounded-lg">
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-2 rounded-lg">
               <Wifi className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -71,7 +71,7 @@ export const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
               className={cn(
                 "w-full justify-start",
                 isCollapsed ? "px-2" : "px-4",
-                activeView === item.id && "bg-blue-600 text-white hover:bg-blue-700"
+                activeView === item.id && "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700"
               )}
               onClick={() => onViewChange(item.id)}
             >

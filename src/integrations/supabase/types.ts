@@ -9,7 +9,144 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      hotspot_users: {
+        Row: {
+          created_at: string | null
+          data_used: number
+          device_type: string
+          id: string
+          ip_address: string
+          location: string | null
+          mac_address: string | null
+          name: string
+          session_start: string
+          status: string
+          updated_at: string | null
+          voucher_code: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_used?: number
+          device_type: string
+          id?: string
+          ip_address: string
+          location?: string | null
+          mac_address?: string | null
+          name: string
+          session_start?: string
+          status?: string
+          updated_at?: string | null
+          voucher_code?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data_used?: number
+          device_type?: string
+          id?: string
+          ip_address?: string
+          location?: string | null
+          mac_address?: string | null
+          name?: string
+          session_start?: string
+          status?: string
+          updated_at?: string | null
+          voucher_code?: string | null
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          category: string
+          id: string
+          key: string
+          updated_at: string | null
+          value: Json
+        }
+        Insert: {
+          category: string
+          id?: string
+          key: string
+          updated_at?: string | null
+          value: Json
+        }
+        Update: {
+          category?: string
+          id?: string
+          key?: string
+          updated_at?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string | null
+          customer: string | null
+          id: string
+          package_type: string
+          payment_method: string
+          voucher_code: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          customer?: string | null
+          id?: string
+          package_type: string
+          payment_method?: string
+          voucher_code: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          customer?: string | null
+          id?: string
+          package_type?: string
+          payment_method?: string
+          voucher_code?: string
+        }
+        Relationships: []
+      }
+      vouchers: {
+        Row: {
+          code: string
+          created_at: string | null
+          description: string | null
+          id: string
+          package_type: string
+          price: number
+          status: string
+          used_at: string | null
+          used_by: string | null
+          value: number
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          package_type: string
+          price: number
+          status?: string
+          used_at?: string | null
+          used_by?: string | null
+          value: number
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          package_type?: string
+          price?: number
+          status?: string
+          used_at?: string | null
+          used_by?: string | null
+          value?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
