@@ -6,17 +6,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wifi } from "lucide-react";
+import { Wifi, Info } from "lucide-react";
 import { signIn, signUp } from "@/lib/auth";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+
+// Test account credentials
+const testAccounts = [
+  { type: "Admin", email: "admin@hotspotpro.com", password: "admin123456", role: "admin" },
+  { type: "Coordinator", email: "coordinator@hotspotpro.com", password: "coord123456", role: "coordinator" },
+  { type: "User", email: "user@hotspotpro.com", password: "user123456", role: "user" }
+];
 
 const Auth = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
+  const [showTestAccounts, setShowTestAccounts] = useState(false);
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
@@ -86,6 +96,36 @@ const Auth = () => {
     }
   };
 
+  // Function to populate login form with test account credentials
+  const selectTestAccount = (email: string, password: string) => {
+    setLoginEmail(email);
+    setLoginPassword(password);
+    setActiveTab("login");
+  };
+
+  // Function to create test accounts
+  const createTestAccounts = async () => {
+    setIsLoading(true);
+    
+    try {
+      for (const account of testAccounts) {
+        try {
+          // Try to sign up the test accounts
+          await signUp(account.email, account.password, `${account.type} User`, account.role as any);
+          toast.success(`Created ${account.type} test account`);
+        } catch (error: any) {
+          // If account already exists, that's fine
+          console.log(`Account ${account.email} may already exist: ${error.message}`);
+        }
+      }
+      toast.success("Test accounts are ready. You can now use them to log in.");
+    } catch (error: any) {
+      toast.error(`Error creating test accounts: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-400 p-4">
       <Card className="w-full max-w-md bg-white/90 backdrop-blur-sm">
@@ -102,6 +142,57 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="w-full flex items-center justify-center gap-2"
+              onClick={() => setShowTestAccounts(!showTestAccounts)}
+            >
+              <Info className="h-4 w-4" />
+              {showTestAccounts ? "Hide Test Accounts" : "Show Test Accounts"}
+            </Button>
+          </div>
+          
+          {showTestAccounts && (
+            <div className="mb-6 space-y-4">
+              <Alert className="bg-yellow-50 border-yellow-200">
+                <AlertTitle className="text-yellow-800">Test Accounts</AlertTitle>
+                <AlertDescription className="text-yellow-700">
+                  <p className="mb-2">Click on an account to automatically fill the login form:</p>
+                  <div className="space-y-2">
+                    {testAccounts.map((account) => (
+                      <Button
+                        key={account.type}
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-between"
+                        onClick={() => selectTestAccount(account.email, account.password)}
+                      >
+                        <span>{account.type} Account</span>
+                        <span className="text-xs opacity-70">{account.email}</span>
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="mt-4">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full border-dashed border-yellow-400"
+                      onClick={createTestAccounts}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Creating accounts..." : "Create Test Accounts"}
+                    </Button>
+                    <p className="text-xs mt-1 text-yellow-700">
+                      Click this button to create test accounts in the database if they don't exist yet.
+                    </p>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+          
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="login">Login</TabsTrigger>
