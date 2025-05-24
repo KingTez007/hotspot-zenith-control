@@ -23,13 +23,19 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function signUp(email: string, password: string, full_name: string, role: UserRole = 'user') {
+  // Validate password length to prevent 422 errors
+  if (password.length < 6) {
+    throw new Error("Password must be at least 6 characters long.");
+  }
+  
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: { 
         full_name,
-        role
+        // Send role as string to prevent type conversion errors
+        role: role.toString()
       }
     }
   });

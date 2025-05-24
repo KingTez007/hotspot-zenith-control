@@ -9,9 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Wifi } from "lucide-react";
 import { signIn, signUp } from "@/lib/auth";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEffect } from "react";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
   
@@ -24,6 +27,13 @@ const Auth = () => {
   const [registerPassword, setRegisterPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +53,16 @@ const Auth = () => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!registerEmail || !registerPassword || !fullName) {
+      toast.error("All fields are required");
+      return;
+    }
+    
+    if (registerPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    
     if (registerPassword !== confirmPassword) {
       toast.error("Passwords do not match");
       return;
@@ -54,6 +74,11 @@ const Auth = () => {
       await signUp(registerEmail, registerPassword, fullName);
       toast.success("Registration successful! Please check your email for verification.");
       setActiveTab("login");
+      // Clear form fields
+      setRegisterEmail("");
+      setRegisterPassword("");
+      setFullName("");
+      setConfirmPassword("");
     } catch (error: any) {
       toast.error(`Registration failed: ${error.message}`);
     } finally {
@@ -94,6 +119,7 @@ const Auth = () => {
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -104,6 +130,7 @@ const Auth = () => {
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
@@ -122,6 +149,7 @@ const Auth = () => {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -133,6 +161,7 @@ const Auth = () => {
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
@@ -143,7 +172,10 @@ const Auth = () => {
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
                     required
+                    disabled={isLoading}
+                    minLength={6}
                   />
+                  <p className="text-xs text-gray-500">Password must be at least 6 characters</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
@@ -153,6 +185,7 @@ const Auth = () => {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
+                    disabled={isLoading}
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
