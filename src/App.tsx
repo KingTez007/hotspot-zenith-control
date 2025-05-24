@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ProtectedRoute, AdminRoute, CoordinatorRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -23,20 +22,8 @@ const App = () => (
             {/* Public routes */}
             <Route path="/auth" element={<Auth />} />
             
-            {/* Protected routes - require authentication */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<Index />} />
-              
-              {/* Admin only routes */}
-              <Route element={<AdminRoute />}>
-                {/* Admin specific routes will go here */}
-              </Route>
-              
-              {/* Coordinator routes - accessible by coordinators and admins */}
-              <Route element={<CoordinatorRoute />}>
-                {/* Coordinator specific routes will go here */}
-              </Route>
-            </Route>
+            {/* Temporarily making all routes public */}
+            <Route path="/" element={<Index />} />
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
