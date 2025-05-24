@@ -18,19 +18,66 @@ import type { ActiveView } from "@/pages/Index";
 interface SidebarProps {
   activeView: ActiveView;
   onViewChange: (view: ActiveView) => void;
+  isAdmin?: boolean;
+  isCoordinator?: boolean;
 }
 
-const navigationItems = [
-  { id: 'dashboard' as ActiveView, label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'users' as ActiveView, label: 'User Monitoring', icon: Users },
-  { id: 'vouchers' as ActiveView, label: 'Voucher Management', icon: Ticket },
-  { id: 'revenue' as ActiveView, label: 'Revenue Tracking', icon: DollarSign },
-  { id: 'analytics' as ActiveView, label: 'Analytics', icon: BarChart3 },
-  { id: 'settings' as ActiveView, label: 'Settings', icon: Settings },
-];
-
-export const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
+export const Sidebar = ({ 
+  activeView, 
+  onViewChange, 
+  isAdmin = false,
+  isCoordinator = false
+}: SidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Define navigation items with role-based access
+  const navigationItems = [
+    { 
+      id: 'dashboard' as ActiveView, 
+      label: 'Dashboard', 
+      icon: LayoutDashboard,
+      // All roles can access dashboard
+      access: true 
+    },
+    { 
+      id: 'users' as ActiveView, 
+      label: 'User Monitoring', 
+      icon: Users,
+      // Only admins and coordinators can access users
+      access: isAdmin || isCoordinator 
+    },
+    { 
+      id: 'vouchers' as ActiveView, 
+      label: 'Voucher Management', 
+      icon: Ticket,
+      // Only admins and coordinators can access vouchers
+      access: isAdmin || isCoordinator 
+    },
+    { 
+      id: 'revenue' as ActiveView, 
+      label: 'Revenue Tracking', 
+      icon: DollarSign,
+      // Only admins can access revenue
+      access: isAdmin 
+    },
+    { 
+      id: 'analytics' as ActiveView, 
+      label: 'Analytics', 
+      icon: BarChart3,
+      // Only admins can access analytics
+      access: isAdmin 
+    },
+    { 
+      id: 'settings' as ActiveView, 
+      label: 'Settings', 
+      icon: Settings,
+      // All roles can access settings (but will see different options)
+      access: true 
+    },
+  ];
+
+  // Filter navigation items based on role access
+  const availableNavigationItems = navigationItems.filter(item => item.access);
 
   return (
     <div className={cn(
@@ -62,7 +109,7 @@ export const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2">
-        {navigationItems.map((item) => {
+        {availableNavigationItems.map((item) => {
           const Icon = item.icon;
           return (
             <Button
