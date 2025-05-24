@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { Wifi, Info } from "lucide-react";
 import { signIn, signUp } from "@/lib/auth";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -47,14 +46,21 @@ const Auth = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!loginEmail || !loginPassword) {
+      toast.error("Email and password are required");
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
       await signIn(loginEmail, loginPassword);
-      navigate("/"); // Redirect to dashboard on success
       toast.success("Login successful");
+      navigate("/"); // Redirect to dashboard on success
     } catch (error: any) {
-      toast.error(`Login failed: ${error.message}`);
+      console.error("Login error:", error);
+      toast.error(`Login failed: ${error.message || "Invalid credentials"}`);
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +96,8 @@ const Auth = () => {
       setFullName("");
       setConfirmPassword("");
     } catch (error: any) {
-      toast.error(`Registration failed: ${error.message}`);
+      console.error("Registration error:", error);
+      toast.error(`Registration failed: ${error.message || "An error occurred"}`);
     } finally {
       setIsLoading(false);
     }
@@ -110,16 +117,39 @@ const Auth = () => {
     try {
       for (const account of testAccounts) {
         try {
+          // Check if the account already exists
+          const { data: existingUser } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('full_name', `${account.type} User`)
+            .single();
+          
+          if (existingUser) {
+            console.log(`Account ${account.email} already exists`);
+            continue;
+          }
+          
           // Try to sign up the test accounts
           await signUp(account.email, account.password, `${account.type} User`, account.role as any);
           toast.success(`Created ${account.type} test account`);
         } catch (error: any) {
-          // If account already exists, that's fine
-          console.log(`Account ${account.email} may already exist: ${error.message}`);
+          // If account already exists or other error, log it
+          console.log(`Issue with ${account.email}: ${error.message}`);
+          
+          // If it's not a "user already registered" error, show it to the user
+          if (!error.message?.includes("already registered")) {
+            toast.error(`Error creating ${account.type} account: ${error.message}`);
+          }
         }
       }
+      
       toast.success("Test accounts are ready. You can now use them to log in.");
+      
+      // Auto-select the user account for convenience
+      selectTestAccount(testAccounts[2].email, testAccounts[2].password);
+      
     } catch (error: any) {
+      console.error("Error creating test accounts:", error);
       toast.error(`Error creating test accounts: ${error.message}`);
     } finally {
       setIsLoading(false);

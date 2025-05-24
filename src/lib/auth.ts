@@ -13,13 +13,18 @@ export interface Profile {
 }
 
 export async function signIn(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email, 
-    password
-  });
-  
-  if (error) throw error;
-  return data;
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email, 
+      password
+    });
+    
+    if (error) throw error;
+    return data;
+  } catch (error: any) {
+    console.error("Sign in error:", error);
+    throw new Error(error.message || "Failed to sign in");
+  }
 }
 
 export async function signUp(email: string, password: string, full_name: string, role: UserRole = 'user') {
@@ -28,53 +33,72 @@ export async function signUp(email: string, password: string, full_name: string,
     throw new Error("Password must be at least 6 characters long.");
   }
   
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { 
-        full_name,
-        // Send role as string to prevent type conversion errors
-        role: role.toString()
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { 
+          full_name,
+          role: role.toString() // Send role as string to prevent type conversion errors
+        }
       }
-    }
-  });
-  
-  if (error) throw error;
-  return data;
+    });
+    
+    if (error) throw error;
+    return data;
+  } catch (error: any) {
+    console.error("Sign up error:", error);
+    throw new Error(error.message || "Failed to sign up");
+  }
 }
 
 export async function signOut() {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  } catch (error: any) {
+    console.error("Sign out error:", error);
+    throw new Error(error.message || "Failed to sign out");
+  }
 }
 
 export async function getProfile(): Promise<Profile | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session?.user) return null;
-  
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', session.user.id)
-    .single();
-  
-  if (error) {
-    console.error('Error fetching profile:', error);
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user) return null;
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching profile:', error);
+      return null;
+    }
+    
+    return data as Profile;
+  } catch (error) {
+    console.error("Get profile error:", error);
     return null;
   }
-  
-  return data as Profile;
 }
 
 export async function updateProfile(profile: Partial<Profile>) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(profile)
-    .eq('id', profile.id!)
-    .select();
-  
-  if (error) throw error;
-  return data[0] as Profile;
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(profile)
+      .eq('id', profile.id!)
+      .select();
+    
+    if (error) throw error;
+    return data[0] as Profile;
+  } catch (error: any) {
+    console.error("Update profile error:", error);
+    throw new Error(error.message || "Failed to update profile");
+  }
 }
