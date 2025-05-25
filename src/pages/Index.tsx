@@ -7,7 +7,7 @@ import { VoucherManagement } from "@/components/VoucherManagement";
 import { RevenueTracking } from "@/components/RevenueTracking";
 import { Settings } from "@/components/Settings";
 import { Analytics } from "@/components/Analytics";
-import { UserDashboard } from "@/components/UserDashboard";
+import UserDashboard from "@/components/UserDashboard";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 export type ActiveView = 'dashboard' | 'users' | 'vouchers' | 'revenue' | 'analytics' | 'settings';
