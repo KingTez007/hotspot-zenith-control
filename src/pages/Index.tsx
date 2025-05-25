@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
 import { UserMonitoring } from "@/components/UserMonitoring";
@@ -13,23 +13,63 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Wifi, Shield, Users, BarChart3 } from "lucide-react";
+import { Wifi, Shield, Users, BarChart3, LogOut, Menu } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { signOut } from "@/lib/auth";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export type ActiveView = 'dashboard' | 'users' | 'vouchers' | 'revenue' | 'analytics' | 'settings';
 
 const Index = () => {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
-  const [userMode, setUserMode] = useState<'admin' | 'moderator' | 'user'>('admin');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, profile, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
   
-  const isAdmin = userMode === 'admin';
-  const isCoordinator = userMode === 'admin' || userMode === 'moderator';
+  // Redirect to auth if not authenticated
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, isLoading, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="bg-white p-6 rounded-lg shadow-lg">
+          <p className="text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || !profile) {
+    return null;
+  }
+
+  const userRole = profile.role as 'admin' | 'coordinator' | 'user';
+  const isAdmin = userRole === 'admin';
+  const isCoordinator = userRole === 'admin' || userRole === 'coordinator';
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success("Logged out successfully");
+      navigate('/auth');
+    } catch (error: any) {
+      toast.error(`Logout failed: ${error.message}`);
+    }
+  };
 
   const renderActiveView = () => {
-    if (userMode === 'user') {
+    if (userRole === 'user') {
       return <UserDashboard />;
     }
 
-    if (userMode === 'moderator') {
+    if (userRole === 'coordinator') {
       return <ModeratorDashboard />;
     }
 
@@ -52,7 +92,7 @@ const Index = () => {
   };
 
   const getRoleInfo = () => {
-    switch (userMode) {
+    switch (userRole) {
       case 'admin':
         return {
           name: "System Administrator",
@@ -68,7 +108,7 @@ const Index = () => {
             "Generate comprehensive reports"
           ]
         };
-      case 'moderator':
+      case 'coordinator':
         return {
           name: "Moderator / Operator",
           description: "User management, voucher/QR generation, session monitoring, billing tasks, customer support",
@@ -100,96 +140,99 @@ const Index = () => {
     }
   };
 
-  const getNextMode = () => {
-    if (userMode === 'admin') return 'moderator';
-    if (userMode === 'moderator') return 'user';
-    return 'admin';
-  };
-
-  const getModeLabel = () => {
-    if (userMode === 'admin') return 'Switch to Moderator';
-    if (userMode === 'moderator') return 'Switch to User';
-    return 'Switch to Administrator';
-  };
-
   const roleInfo = getRoleInfo();
   const RoleIcon = roleInfo.icon;
 
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 to-slate-100">
-        {(userMode === 'admin' || userMode === 'moderator') && (
-          <Sidebar 
-            activeView={activeView} 
-            onViewChange={setActiveView} 
-            isAdmin={isAdmin}
-            isCoordinator={isCoordinator}
+        {/* Mobile Sidebar Overlay */}
+        {isMobile && sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
           />
         )}
-        <div className="flex-1 flex flex-col">
+        
+        {/* Sidebar */}
+        {(userRole === 'admin' || userRole === 'coordinator') && (
+          <div className={`${isMobile ? 'fixed' : 'relative'} z-50 ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'} transition-transform duration-300 ease-in-out`}>
+            <Sidebar 
+              activeView={activeView} 
+              onViewChange={(view) => {
+                setActiveView(view);
+                if (isMobile) setSidebarOpen(false);
+              }}
+              isAdmin={isAdmin}
+              isCoordinator={isCoordinator}
+            />
+          </div>
+        )}
+        
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Professional Header */}
           <header className="bg-white border-b border-gray-200 shadow-sm">
-            <div className="px-6 py-4">
+            <div className="px-4 lg:px-6 py-3 lg:py-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-3">
-                    <div className={`${roleInfo.color} p-3 rounded-xl text-white`}>
-                      <RoleIcon className="h-6 w-6" />
+                <div className="flex items-center space-x-2 lg:space-x-4 min-w-0 flex-1">
+                  {/* Mobile Menu Button */}
+                  {isMobile && (userRole === 'admin' || userRole === 'coordinator') && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSidebarOpen(!sidebarOpen)}
+                      className="lg:hidden p-2"
+                    >
+                      <Menu className="h-5 w-5" />
+                    </Button>
+                  )}
+                  
+                  <div className="flex items-center space-x-2 lg:space-x-3 min-w-0">
+                    <div className={`${roleInfo.color} p-2 lg:p-3 rounded-xl text-white flex-shrink-0`}>
+                      <RoleIcon className="h-4 w-4 lg:h-6 lg:w-6" />
                     </div>
-                    <div>
-                      <div className="flex items-center space-x-3">
-                        <h1 className="text-xl font-semibold text-gray-900">
-                          {roleInfo.name}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center space-x-2 lg:space-x-3">
+                        <h1 className="text-lg lg:text-xl font-semibold text-gray-900 truncate">
+                          {isMobile ? roleInfo.badge : roleInfo.name}
                         </h1>
-                        <Badge variant="outline" className={`${roleInfo.color} text-white border-0`}>
+                        <Badge variant="outline" className={`${roleInfo.color} text-white border-0 hidden sm:inline-flex`}>
                           {roleInfo.badge}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {roleInfo.description}
-                      </p>
+                      {!isMobile && (
+                        <p className="text-sm text-gray-600 mt-1 truncate">
+                          {roleInfo.description}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-4">
-                  {/* Role Demo Switcher */}
-                  <div className="hidden md:flex items-center space-x-2 bg-gray-50 px-3 py-2 rounded-lg">
-                    <span className="text-sm text-gray-600">Demo Mode:</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setUserMode(getNextMode())}
-                      className="text-xs"
-                    >
-                      {getModeLabel()}
-                    </Button>
+                <div className="flex items-center space-x-2 lg:space-x-4 flex-shrink-0">
+                  {/* System Status */}
+                  <div className="hidden sm:flex items-center space-x-2 bg-green-50 px-2 lg:px-3 py-1 lg:py-2 rounded-lg">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs lg:text-sm font-medium text-green-800">Online</span>
                   </div>
                   
-                  {/* System Status */}
-                  <div className="flex items-center space-x-2 bg-green-50 px-3 py-2 rounded-lg">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium text-green-800">System Online</span>
-                  </div>
+                  {/* Logout Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSignOut}
+                    className="flex items-center space-x-1 lg:space-x-2"
+                  >
+                    <LogOut className="h-3 w-3 lg:h-4 lg:w-4" />
+                    <span className="hidden sm:inline">Logout</span>
+                  </Button>
                 </div>
-              </div>
-
-              {/* Mobile Role Switcher */}
-              <div className="md:hidden mt-3 pt-3 border-t border-gray-100">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setUserMode(getNextMode())}
-                  className="w-full"
-                >
-                  {getModeLabel()}
-                </Button>
               </div>
             </div>
           </header>
 
-          {/* Role Information Panel (for admin/moderator only) */}
-          {userMode !== 'user' && (
+          {/* Role Information Panel (for admin/coordinator only) */}
+          {userRole !== 'user' && !isMobile && (
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
               <div className="px-6 py-3">
                 <Card className="border-blue-200 bg-white/70 backdrop-blur-sm">
@@ -198,7 +241,7 @@ const Index = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                       {roleInfo.responsibilities.map((responsibility, index) => (
                         <div key={index} className="flex items-center text-xs text-blue-800">
-                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></div>
+                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2 flex-shrink-0"></div>
                           {responsibility}
                         </div>
                       ))}

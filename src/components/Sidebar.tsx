@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import type { ActiveView } from "@/pages/Index";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SidebarProps {
   activeView: ActiveView;
@@ -32,6 +33,7 @@ export const Sidebar = ({
   isCoordinator = false
 }: SidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const isMobile = useIsMobile();
 
   // Define navigation items with role-based access
   const navigationItems = [
@@ -88,17 +90,20 @@ export const Sidebar = ({
   // Filter navigation items based on role access
   const availableNavigationItems = navigationItems.filter(item => item.access);
 
+  const shouldCollapse = isCollapsed && !isMobile;
+
   return (
     <div className={cn(
       "bg-white border-r border-gray-200 shadow-lg flex flex-col transition-all duration-300",
-      isCollapsed ? "w-16" : "w-72"
+      shouldCollapse ? "w-16" : isMobile ? "w-72" : "w-72",
+      "h-screen"
     )}>
       {/* Header */}
       <div className="p-4 border-b border-gray-100">
-        {!isCollapsed && (
+        {!shouldCollapse && (
           <div className="flex items-center space-x-3 mb-4">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2.5 rounded-xl">
-              <Wifi className="h-7 w-7 text-white" />
+              <Wifi className="h-6 w-6 lg:h-7 lg:w-7 text-white" />
             </div>
             <div>
               <h1 className="font-bold text-xl text-gray-900">HotSpot Pro</h1>
@@ -107,7 +112,7 @@ export const Sidebar = ({
           </div>
         )}
         
-        {!isCollapsed && (
+        {!shouldCollapse && (
           <div className="flex items-center space-x-2">
             {isAdmin ? (
               <Badge className="bg-red-500 text-white">
@@ -123,18 +128,20 @@ export const Sidebar = ({
           </div>
         )}
         
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={cn("p-2 mt-3", isCollapsed && "w-full")}
-        >
-          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
+        {!isMobile && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className={cn("p-2 mt-3", shouldCollapse && "w-full")}
+          >
+            {shouldCollapse ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {availableNavigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.id;
@@ -145,15 +152,15 @@ export const Sidebar = ({
               variant={isActive ? "default" : "ghost"}
               className={cn(
                 "w-full justify-start h-auto p-3",
-                isCollapsed ? "px-3" : "px-4",
+                shouldCollapse ? "px-3" : "px-4",
                 isActive && "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md",
                 !isActive && "hover:bg-gray-50 text-gray-700"
               )}
               onClick={() => onViewChange(item.id)}
             >
               <div className="flex items-center w-full">
-                <Icon className={cn("h-5 w-5 flex-shrink-0", !isCollapsed && "mr-3")} />
-                {!isCollapsed && (
+                <Icon className={cn("h-5 w-5 flex-shrink-0", !shouldCollapse && "mr-3")} />
+                {!shouldCollapse && (
                   <div className="flex-1 text-left">
                     <div className="font-medium">{item.label}</div>
                     <div className={cn(
@@ -164,7 +171,7 @@ export const Sidebar = ({
                     </div>
                   </div>
                 )}
-                {!isCollapsed && item.adminOnly && (
+                {!shouldCollapse && item.adminOnly && (
                   <Badge 
                     variant="outline" 
                     className={cn(
@@ -185,11 +192,11 @@ export const Sidebar = ({
       <div className="p-4 border-t border-gray-100">
         <div className={cn(
           "bg-green-50 border border-green-200 rounded-xl p-3",
-          isCollapsed && "p-2"
+          shouldCollapse && "p-2"
         )}>
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0"></div>
-            {!isCollapsed && (
+            {!shouldCollapse && (
               <div>
                 <p className="text-sm font-medium text-green-800">System Status</p>
                 <p className="text-xs text-green-600">All services operational</p>
@@ -198,7 +205,7 @@ export const Sidebar = ({
           </div>
         </div>
         
-        {!isCollapsed && (
+        {!shouldCollapse && (
           <div className="mt-3 text-center">
             <p className="text-xs text-gray-400">Version 2.1.0</p>
           </div>
