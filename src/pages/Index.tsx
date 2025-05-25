@@ -8,21 +8,26 @@ import { RevenueTracking } from "@/components/RevenueTracking";
 import { Settings } from "@/components/Settings";
 import { Analytics } from "@/components/Analytics";
 import UserDashboard from "@/components/UserDashboard";
+import { ModeratorDashboard } from "@/components/ModeratorDashboard";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 export type ActiveView = 'dashboard' | 'users' | 'vouchers' | 'revenue' | 'analytics' | 'settings';
 
 const Index = () => {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
-  const [userMode, setUserMode] = useState<'admin' | 'user'>('admin'); // Toggle between admin and user mode
+  const [userMode, setUserMode] = useState<'admin' | 'user' | 'moderator'>('admin');
   
   // Mock admin access for testing
   const isAdmin = userMode === 'admin';
-  const isCoordinator = userMode === 'admin';
+  const isCoordinator = userMode === 'admin' || userMode === 'moderator';
 
   const renderActiveView = () => {
     if (userMode === 'user') {
       return <UserDashboard />;
+    }
+
+    if (userMode === 'moderator') {
+      return <ModeratorDashboard />;
     }
 
     switch (activeView) {
@@ -49,6 +54,11 @@ const Index = () => {
         name: "Test User",
         role: "Administrator (Test Mode)"
       };
+    } else if (userMode === 'moderator') {
+      return {
+        name: "Moderator User",
+        role: "Moderator/Operator Mode"
+      };
     } else {
       return {
         name: "Guest User",
@@ -57,12 +67,24 @@ const Index = () => {
     }
   };
 
+  const getNextMode = () => {
+    if (userMode === 'admin') return 'moderator';
+    if (userMode === 'moderator') return 'user';
+    return 'admin';
+  };
+
+  const getModeLabel = () => {
+    if (userMode === 'admin') return 'Moderator';
+    if (userMode === 'moderator') return 'User';
+    return 'Admin';
+  };
+
   const userInfo = getUserDisplayInfo();
 
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-400">
-        {userMode === 'admin' && (
+        {(userMode === 'admin' || userMode === 'moderator') && (
           <Sidebar 
             activeView={activeView} 
             onViewChange={setActiveView} 
@@ -83,10 +105,10 @@ const Index = () => {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setUserMode(userMode === 'admin' ? 'user' : 'admin')}
+                onClick={() => setUserMode(getNextMode())}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
               >
-                Switch to {userMode === 'admin' ? 'User' : 'Admin'} Mode
+                Switch to {getModeLabel()} Mode
               </button>
             </div>
           </header>
