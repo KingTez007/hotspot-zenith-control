@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wifi, Info, AlertCircle } from "lucide-react";
+import { Wifi, Info, AlertCircle, CheckCircle, ExternalLink } from "lucide-react";
 import { signIn, signUp } from "@/lib/auth";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,6 +25,7 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
   const [showTestAccounts, setShowTestAccounts] = useState(false);
+  const [showSetupInstructions, setShowSetupInstructions] = useState(false);
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
@@ -59,7 +60,7 @@ const Auth = () => {
       navigate("/");
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error(`Login failed: ${error.message || "Invalid credentials"}`);
+      toast.error(error.message || "Login failed");
     } finally {
       setIsLoading(false);
     }
@@ -96,7 +97,7 @@ const Auth = () => {
       setConfirmPassword("");
     } catch (error: any) {
       console.error("Registration error:", error);
-      toast.error(`Registration failed: ${error.message || "An error occurred"}`);
+      toast.error(error.message || "Registration failed");
     } finally {
       setIsLoading(false);
     }
@@ -168,13 +169,49 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert className="bg-amber-50 border-amber-200">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertTitle className="text-amber-800">Setup Required</AlertTitle>
-            <AlertDescription className="text-amber-700 text-sm">
-              Please enable email authentication in your Supabase dashboard under Authentication → Settings → Auth Providers.
+          <Alert className="bg-red-50 border-red-200">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertTitle className="text-red-800">Setup Required</AlertTitle>
+            <AlertDescription className="text-red-700 text-sm space-y-2">
+              <p>Authentication is not properly configured. Please complete these steps:</p>
+              <div className="space-y-1 text-xs">
+                <p>1. Enable email authentication in Supabase</p>
+                <p>2. Run the database migration SQL</p>
+                <p>3. Set up the site URL configuration</p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => setShowSetupInstructions(!showSetupInstructions)}
+              >
+                <ExternalLink className="h-3 w-3 mr-2" />
+                {showSetupInstructions ? "Hide" : "Show"} Setup Instructions
+              </Button>
             </AlertDescription>
           </Alert>
+
+          {showSetupInstructions && (
+            <Alert className="bg-blue-50 border-blue-200">
+              <CheckCircle className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-800">Step-by-Step Setup</AlertTitle>
+              <AlertDescription className="text-blue-700 text-sm space-y-3">
+                <div>
+                  <p className="font-semibold">Step 1: Enable Email Authentication</p>
+                  <p>Go to Supabase Dashboard → Authentication → Settings → Email Auth</p>
+                  <p>Enable "Enable email confirmations" and "Enable email signups"</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Step 2: Run Database Migration</p>
+                  <p>Go to SQL Editor and run the profiles table creation SQL</p>
+                </div>
+                <div>
+                  <p className="font-semibold">Step 3: Configure Site URL</p>
+                  <p>Set Site URL in Authentication → URL Configuration</p>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="mb-4">
             <Button 

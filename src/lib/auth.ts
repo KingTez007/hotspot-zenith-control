@@ -30,15 +30,15 @@ export async function signIn(email: string, password: string) {
   } catch (error: any) {
     console.error("Sign in error:", error);
     
-    // Handle specific Supabase errors
+    // Handle specific Supabase errors with actionable messages
     if (error.message?.includes('Email logins are disabled')) {
-      throw new Error("Email authentication is currently disabled. Please contact the administrator.");
+      throw new Error("❌ Email authentication is disabled. Please enable it in your Supabase dashboard under Authentication → Settings → Email Auth.");
     } else if (error.message?.includes('Invalid login credentials')) {
-      throw new Error("Invalid email or password. Please check your credentials.");
+      throw new Error("❌ Invalid email or password. Try clicking 'Create Demo Accounts' first to set up test accounts.");
     } else if (error.message?.includes('Email signups are disabled')) {
-      throw new Error("Email registration is currently disabled. Please contact the administrator.");
+      throw new Error("❌ Email registration is disabled. Please enable it in your Supabase dashboard.");
     } else {
-      throw new Error(error.message || "Failed to sign in");
+      throw new Error(`❌ ${error.message || "Failed to sign in"}`);
     }
   }
 }
@@ -46,7 +46,7 @@ export async function signIn(email: string, password: string) {
 export async function signUp(email: string, password: string, full_name: string, role: UserRole = 'user') {
   // Validate password length to prevent 422 errors
   if (password.length < 6) {
-    throw new Error("Password must be at least 6 characters long.");
+    throw new Error("❌ Password must be at least 6 characters long.");
   }
   
   try {
@@ -70,25 +70,21 @@ export async function signUp(email: string, password: string, full_name: string,
     }
     
     console.log('Sign up successful:', data);
-    
-    // If user was created successfully, also create profile manually as fallback
-    if (data.user && !data.session) {
-      console.log('User created but no session - email confirmation may be required');
-    }
-    
     return data;
   } catch (error: any) {
     console.error("Sign up error:", error);
     
-    // Handle specific Supabase errors
+    // Handle specific Supabase errors with actionable messages
     if (error.message?.includes('Email signups are disabled')) {
-      throw new Error("Email registration is currently disabled. Please enable email authentication in Supabase dashboard.");
+      throw new Error("❌ Email registration is disabled. Please enable email authentication in your Supabase dashboard under Authentication → Settings → Email Auth.");
+    } else if (error.message?.includes('Database error saving new user')) {
+      throw new Error("❌ Database setup incomplete. Please run the required SQL migrations in your Supabase SQL editor first.");
     } else if (error.message?.includes('User already registered')) {
-      throw new Error("An account with this email already exists. Please try signing in instead.");
+      throw new Error("❌ An account with this email already exists. Please try signing in instead.");
     } else if (error.message?.includes('Email logins are disabled')) {
-      throw new Error("Email authentication is currently disabled. Please enable it in Supabase dashboard.");
+      throw new Error("❌ Email authentication is disabled. Please enable it in your Supabase dashboard.");
     } else {
-      throw new Error(error.message || "Failed to sign up");
+      throw new Error(`❌ ${error.message || "Failed to sign up"}`);
     }
   }
 }
