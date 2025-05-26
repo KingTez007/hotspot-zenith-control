@@ -40,7 +40,7 @@ export async function signUp(email: string, password: string, full_name: string,
       options: {
         data: { 
           full_name,
-          role: role.toString() // Send role as string to prevent type conversion errors
+          role: role // Send role to be used in the trigger
         }
       }
     });

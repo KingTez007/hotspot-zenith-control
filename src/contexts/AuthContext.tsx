@@ -31,24 +31,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // First, set up the auth state listener
+    // Set up the auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
+      async (event, newSession) => {
+        console.log('Auth state changed:', event, newSession?.user?.id);
         setSession(newSession);
         setUser(newSession?.user ?? null);
+        
+        if (newSession?.user) {
+          // Fetch profile when user logs in
+          try {
+            const userProfile = await getProfile();
+            console.log('Fetched profile:', userProfile);
+            setProfile(userProfile);
+          } catch (error) {
+            console.error('Error fetching profile:', error);
+          }
+        } else {
+          setProfile(null);
+        }
+        setIsLoading(false);
       }
     );
 
-    // Then check for existing session
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      console.log('Initial session check:', currentSession?.user?.id);
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       
       if (currentSession?.user) {
-        // Avoid potential deadlock by deferring this call
-        setTimeout(() => {
-          fetchUserProfile(currentSession.user.id);
-        }, 0);
+        getProfile().then(userProfile => {
+          console.log('Initial profile fetch:', userProfile);
+          setProfile(userProfile);
+          setIsLoading(false);
+        }).catch(error => {
+          console.error('Error fetching initial profile:', error);
+          setIsLoading(false);
+        });
       } else {
         setIsLoading(false);
       }
@@ -56,23 +76,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const userProfile = await getProfile();
-      setProfile(userProfile);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (user && !profile) {
-      fetchUserProfile(user.id);
-    }
-  }, [user, profile]);
 
   const isAdmin = profile?.role === 'admin';
   const isCoordinator = profile?.role === 'coordinator';
