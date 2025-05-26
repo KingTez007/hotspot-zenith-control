@@ -33,24 +33,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Set up the auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         console.log('Auth state changed:', event, newSession?.user?.id);
         setSession(newSession);
         setUser(newSession?.user ?? null);
         
         if (newSession?.user) {
-          // Fetch profile when user logs in
-          try {
-            const userProfile = await getProfile();
-            console.log('Fetched profile:', userProfile);
-            setProfile(userProfile);
-          } catch (error) {
-            console.error('Error fetching profile:', error);
-          }
+          // Fetch profile when user logs in - use setTimeout to avoid auth callback issues
+          setTimeout(async () => {
+            try {
+              const userProfile = await getProfile();
+              console.log('Fetched profile after auth change:', userProfile);
+              setProfile(userProfile);
+            } catch (error) {
+              console.error('Error fetching profile after auth change:', error);
+            } finally {
+              setIsLoading(false);
+            }
+          }, 100);
         } else {
           setProfile(null);
+          setIsLoading(false);
         }
-        setIsLoading(false);
       }
     );
 
