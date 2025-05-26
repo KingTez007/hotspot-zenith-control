@@ -6,12 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wifi, Info } from "lucide-react";
+import { Wifi, Info, AlertCircle } from "lucide-react";
 import { signIn, signUp } from "@/lib/auth";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { supabase } from "@/integrations/supabase/client";
 
 // Test account credentials
 const testAccounts = [
@@ -88,7 +87,7 @@ const Auth = () => {
     
     try {
       await signUp(registerEmail, registerPassword, fullName);
-      toast.success("Registration successful! Please check your email for verification.");
+      toast.success("Registration successful! Please check your email for verification if required.");
       setActiveTab("login");
       // Clear form fields
       setRegisterEmail("");
@@ -116,35 +115,28 @@ const Auth = () => {
     setIsLoading(true);
     
     try {
+      let successCount = 0;
       for (const account of testAccounts) {
         try {
-          // Check if the account already exists
-          const { data: existingUser } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('full_name', `${account.type} User`)
-            .single();
-          
-          if (existingUser) {
-            console.log(`Account ${account.email} already exists`);
-            continue;
-          }
-          
-          // Try to sign up the test accounts
           await signUp(account.email, account.password, `${account.type} User`, account.role as any);
+          successCount++;
           toast.success(`Created ${account.type} test account`);
         } catch (error: any) {
-          // If account already exists or other error, log it
           console.log(`Issue with ${account.email}: ${error.message}`);
-          
-          // If it's not a "user already registered" error, show it to the user
-          if (!error.message?.includes("already registered")) {
+          // If account already exists, that's fine
+          if (error.message?.includes("already registered") || error.message?.includes("already exists")) {
+            console.log(`Account ${account.email} already exists`);
+          } else {
             toast.error(`Error creating ${account.type} account: ${error.message}`);
           }
         }
       }
       
-      toast.success("Test accounts are ready. You can now use them to log in.");
+      if (successCount > 0) {
+        toast.success("Test accounts created successfully!");
+      } else {
+        toast.info("Test accounts already exist or there was an issue creating them.");
+      }
       
       // Auto-select the admin account for convenience
       selectTestAccount(testAccounts[0].email, testAccounts[0].password);
@@ -176,6 +168,14 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Alert className="bg-amber-50 border-amber-200">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-800">Setup Required</AlertTitle>
+            <AlertDescription className="text-amber-700 text-sm">
+              Please enable email authentication in your Supabase dashboard under Authentication → Settings → Auth Providers.
+            </AlertDescription>
+          </Alert>
+
           <div className="mb-4">
             <Button 
               variant="outline" 

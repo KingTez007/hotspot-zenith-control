@@ -12,6 +12,7 @@ interface AuthContextProps {
   isAdmin: boolean;
   isCoordinator: boolean;
   isUser: boolean;
+  refetchProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextProps>({
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextProps>({
   isAdmin: false,
   isCoordinator: false,
   isUser: false,
+  refetchProfile: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -30,25 +32,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchProfile = async (currentUser?: User) => {
+    if (!currentUser && !user) return;
+    
+    try {
+      const userProfile = await getProfile();
+      console.log('Fetched profile:', userProfile);
+      setProfile(userProfile);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      setProfile(null);
+    }
+  };
+
+  const refetchProfile = async () => {
+    await fetchProfile();
+  };
+
   useEffect(() => {
+    let mounted = true;
+
     // Set up the auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
+      async (event, newSession) => {
         console.log('Auth state changed:', event, newSession?.user?.id);
+        
+        if (!mounted) return;
+        
         setSession(newSession);
         setUser(newSession?.user ?? null);
         
         if (newSession?.user) {
-          // Fetch profile when user logs in - use setTimeout to avoid auth callback issues
+          // Use setTimeout to prevent auth callback issues
           setTimeout(async () => {
+            if (!mounted) return;
             try {
-              const userProfile = await getProfile();
-              console.log('Fetched profile after auth change:', userProfile);
-              setProfile(userProfile);
+              await fetchProfile(newSession.user);
             } catch (error) {
               console.error('Error fetching profile after auth change:', error);
             } finally {
-              setIsLoading(false);
+              if (mounted) {
+                setIsLoading(false);
+              }
             }
           }, 100);
         } else {
@@ -59,26 +84,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      console.log('Initial session check:', currentSession?.user?.id);
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      
-      if (currentSession?.user) {
-        getProfile().then(userProfile => {
-          console.log('Initial profile fetch:', userProfile);
-          setProfile(userProfile);
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        console.log('Initial session check:', currentSession?.user?.id);
+        
+        if (!mounted) return;
+        
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        
+        if (currentSession?.user) {
+          await fetchProfile(currentSession.user);
+        }
+      } catch (error) {
+        console.error('Error fetching initial session:', error);
+      } finally {
+        if (mounted) {
           setIsLoading(false);
-        }).catch(error => {
-          console.error('Error fetching initial profile:', error);
-          setIsLoading(false);
-        });
-      } else {
-        setIsLoading(false);
+        }
       }
-    });
+    };
 
-    return () => subscription.unsubscribe();
+    initializeAuth();
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const isAdmin = profile?.role === 'admin';
@@ -93,7 +126,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoading, 
       isAdmin, 
       isCoordinator,
-      isUser
+      isUser,
+      refetchProfile
     }}>
       {children}
     </AuthContext.Provider>
