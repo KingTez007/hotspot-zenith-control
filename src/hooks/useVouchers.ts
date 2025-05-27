@@ -23,6 +23,7 @@ export const useVouchers = () => {
 
   const fetchVouchers = async () => {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase
         .from('vouchers')
         .select('*')
@@ -78,6 +79,34 @@ export const useVouchers = () => {
     }
   };
 
+  const useVoucher = async (voucherCode: string, userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('vouchers')
+        .update({
+          status: 'used',
+          used_at: new Date().toISOString(),
+          used_by: userId
+        })
+        .eq('code', voucherCode)
+        .eq('status', 'active')
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setVouchers(prev => prev.map(v => 
+        v.code === voucherCode ? { ...v, status: 'used', used_at: data.used_at, used_by: data.used_by } : v
+      ));
+
+      return data;
+    } catch (error) {
+      console.error('Error using voucher:', error);
+      toast.error('Failed to use voucher');
+      throw error;
+    }
+  };
+
   const generateVoucherCode = (type: string, value: number) => {
     const prefix = type === 'time' ? 'TIME' : 'DATA';
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -86,12 +115,28 @@ export const useVouchers = () => {
 
   useEffect(() => {
     fetchVouchers();
+
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('vouchers_changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'vouchers' },
+        () => {
+          fetchVouchers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   return {
     vouchers,
     isLoading,
     generateVoucher,
+    useVoucher,
     refreshVouchers: fetchVouchers
   };
 };

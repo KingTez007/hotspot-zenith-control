@@ -10,7 +10,8 @@ import {
   Wifi,
   Clock,
   TrendingUp,
-  Loader2
+  Loader2,
+  RefreshCw
 } from "lucide-react";
 import type { ActiveView } from "@/pages/Index";
 import { useVouchers } from "@/hooks/useVouchers";
@@ -22,9 +23,9 @@ interface DashboardProps {
 }
 
 export const Dashboard = ({ onNavigate }: DashboardProps) => {
-  const { vouchers, isLoading: vouchersLoading } = useVouchers();
-  const { users, isLoading: usersLoading } = useHotspotUsers();
-  const { transactions, isLoading: transactionsLoading } = useTransactions();
+  const { vouchers, isLoading: vouchersLoading, refreshVouchers } = useVouchers();
+  const { users, isLoading: usersLoading, refreshUsers } = useHotspotUsers();
+  const { transactions, isLoading: transactionsLoading, refreshTransactions } = useTransactions();
 
   const isLoading = vouchersLoading || usersLoading || transactionsLoading;
 
@@ -34,6 +35,14 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
     .filter(t => new Date(t.created_at).toDateString() === new Date().toDateString())
     .reduce((sum, t) => sum + Number(t.amount), 0);
   const totalDataUsage = users.reduce((sum, user) => sum + user.data_used, 0);
+
+  const refreshAllData = async () => {
+    await Promise.all([
+      refreshVouchers(),
+      refreshUsers(),
+      refreshTransactions()
+    ]);
+  };
 
   if (isLoading) {
     return (
@@ -51,15 +60,28 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
           <h1 className="text-3xl font-bold text-white">Dashboard</h1>
           <p className="text-white/80 mt-1">Welcome back! Here's your hotspot overview.</p>
         </div>
-        <div className="flex items-center space-x-2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-md">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-sm font-medium text-gray-800">Live Data</span>
+        <div className="flex items-center space-x-4">
+          <Button 
+            onClick={refreshAllData}
+            variant="outline"
+            className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh All
+          </Button>
+          <div className="flex items-center space-x-2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-md">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-gray-800">Live Data</span>
+          </div>
         </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="hover:shadow-xl transition-shadow cursor-pointer bg-white/90 backdrop-blur-sm border-0" onClick={() => onNavigate('users')}>
+        <Card 
+          className="hover:shadow-xl transition-all duration-200 cursor-pointer bg-white/90 backdrop-blur-sm border-0 hover:scale-105" 
+          onClick={() => onNavigate('users')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Users</CardTitle>
             <div className="bg-blue-100 p-2 rounded-lg">
@@ -75,7 +97,10 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-xl transition-shadow cursor-pointer bg-white/90 backdrop-blur-sm border-0" onClick={() => onNavigate('vouchers')}>
+        <Card 
+          className="hover:shadow-xl transition-all duration-200 cursor-pointer bg-white/90 backdrop-blur-sm border-0 hover:scale-105" 
+          onClick={() => onNavigate('vouchers')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Vouchers</CardTitle>
             <div className="bg-green-100 p-2 rounded-lg">
@@ -88,7 +113,10 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-xl transition-shadow cursor-pointer bg-white/90 backdrop-blur-sm border-0" onClick={() => onNavigate('revenue')}>
+        <Card 
+          className="hover:shadow-xl transition-all duration-200 cursor-pointer bg-white/90 backdrop-blur-sm border-0 hover:scale-105" 
+          onClick={() => onNavigate('revenue')}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
             <div className="bg-purple-100 p-2 rounded-lg">
@@ -101,7 +129,7 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-xl transition-shadow bg-white/90 backdrop-blur-sm border-0">
+        <Card className="hover:shadow-xl transition-all duration-200 bg-white/90 backdrop-blur-sm border-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Data Usage</CardTitle>
             <div className="bg-orange-100 p-2 rounded-lg">
@@ -136,14 +164,14 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
               className="w-full justify-between bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
               onClick={() => onNavigate('users')}
             >
-              View Active Sessions
+              Monitor Active Sessions
               <ArrowRight className="h-4 w-4" />
             </Button>
             <Button 
               className="w-full justify-between bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
               onClick={() => onNavigate('revenue')}
             >
-              Export Revenue Report
+              View Revenue Reports
               <ArrowRight className="h-4 w-4" />
             </Button>
           </CardContent>
@@ -158,7 +186,7 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {users.slice(0, 3).map((user, index) => (
+              {users.slice(0, 3).map((user) => (
                 <div key={user.id} className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
                     {user.name.charAt(0).toUpperCase()}
@@ -181,6 +209,13 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
                   </div>
                 </div>
               ))}
+
+              {users.length === 0 && transactions.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  <p className="text-sm">No recent activity</p>
+                  <p className="text-xs">Generate vouchers or connect users to see activity</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

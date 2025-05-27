@@ -24,9 +24,13 @@ import {
   Monitor,
   Tablet,
   Download,
-  Eye
+  Eye,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
+import { useVouchers } from "@/hooks/useVouchers";
+import { useHotspotUsers } from "@/hooks/useHotspotUsers";
+import { useTransactions } from "@/hooks/useTransactions";
 
 interface WiFiProfile {
   id: string;
@@ -37,40 +41,15 @@ interface WiFiProfile {
   type: 'time' | 'data' | 'unlimited';
 }
 
-interface ActiveUser {
-  id: string;
-  voucherCode: string;
-  deviceName: string;
-  deviceType: 'mobile' | 'laptop' | 'tablet';
-  macAddress: string;
-  ipAddress: string;
-  connectionTime: Date;
-  dataUsed: number;
-  dataLimit?: number;
-  timeLimit?: number;
-  timeUsed: number;
-  status: 'active' | 'warning' | 'expired';
-  signalStrength: number;
-}
-
-interface GeneratedVoucher {
-  id: string;
-  code: string;
-  profile: WiFiProfile;
-  qrCode: string;
-  generatedAt: Date;
-  usedAt?: Date;
-  usedBy?: string;
-  status: 'unused' | 'used' | 'expired';
-}
-
 export const ModeratorDashboard = () => {
   const [activeView, setActiveView] = useState<'generate' | 'sessions' | 'history'>('generate');
   const [selectedProfile, setSelectedProfile] = useState<string>('');
-  const [generatedVoucher, setGeneratedVoucher] = useState<GeneratedVoucher | null>(null);
-  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
-  const [voucherHistory, setVoucherHistory] = useState<GeneratedVoucher[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const { vouchers, generateVoucher, isLoading: vouchersLoading } = useVouchers();
+  const { users, disconnectUser, isLoading: usersLoading } = useHotspotUsers();
+  const { addTransaction } = useTransactions();
 
   const wifiProfiles: WiFiProfile[] = [
     { id: '1h', name: '1 Hour Access', duration: 60, price: 2, type: 'time' },
@@ -82,56 +61,7 @@ export const ModeratorDashboard = () => {
     { id: 'unlimited', name: 'Unlimited Access', price: 20, type: 'unlimited' }
   ];
 
-  // Mock data for active users
-  useEffect(() => {
-    const mockUsers: ActiveUser[] = [
-      {
-        id: '1',
-        voucherCode: 'WIFI-1H-001',
-        deviceName: 'iPhone 14 Pro',
-        deviceType: 'mobile',
-        macAddress: 'AA:BB:CC:DD:EE:01',
-        ipAddress: '192.168.1.101',
-        connectionTime: new Date(Date.now() - 1800000), // 30 min ago
-        dataUsed: 245,
-        timeLimit: 60,
-        timeUsed: 30,
-        status: 'active',
-        signalStrength: 85
-      },
-      {
-        id: '2',
-        voucherCode: 'WIFI-3H-002',
-        deviceName: 'MacBook Pro',
-        deviceType: 'laptop',
-        macAddress: 'AA:BB:CC:DD:EE:02',
-        ipAddress: '192.168.1.102',
-        connectionTime: new Date(Date.now() - 3600000), // 1 hour ago
-        dataUsed: 512,
-        timeLimit: 180,
-        timeUsed: 60,
-        status: 'active',
-        signalStrength: 92
-      },
-      {
-        id: '3',
-        voucherCode: 'WIFI-500MB-003',
-        deviceName: 'Samsung Galaxy S23',
-        deviceType: 'mobile',
-        macAddress: 'AA:BB:CC:DD:EE:03',
-        ipAddress: '192.168.1.103',
-        connectionTime: new Date(Date.now() - 900000), // 15 min ago
-        dataUsed: 450,
-        dataLimit: 500,
-        timeUsed: 15,
-        status: 'warning',
-        signalStrength: 78
-      }
-    ];
-    setActiveUsers(mockUsers);
-  }, []);
-
-  const generateVoucher = () => {
+  const handleGenerateVoucher = async () => {
     if (!selectedProfile) {
       toast.error("Please select a WiFi profile");
       return;
@@ -140,36 +70,33 @@ export const ModeratorDashboard = () => {
     const profile = wifiProfiles.find(p => p.id === selectedProfile);
     if (!profile) return;
 
-    const voucherCode = `WIFI-${profile.id.toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    const qrCodeData = `WIFI:T:WPA;S:Free-WiFi-Hotspot;P:${voucherCode};;`;
-    
-    const newVoucher: GeneratedVoucher = {
-      id: Date.now().toString(),
-      code: voucherCode,
-      profile,
-      qrCode: qrCodeData,
-      generatedAt: new Date(),
-      status: 'unused'
-    };
+    setIsGenerating(true);
+    try {
+      const newVouchers = await generateVoucher(
+        profile.type,
+        profile.duration || profile.dataLimit || 0,
+        profile.price,
+        1,
+        profile.name
+      );
 
-    setGeneratedVoucher(newVoucher);
-    setVoucherHistory(prev => [newVoucher, ...prev]);
-    toast.success(`Voucher generated: ${voucherCode}`);
-  };
+      if (newVouchers && newVouchers.length > 0) {
+        // Record the transaction
+        await addTransaction({
+          voucher_code: newVouchers[0].code,
+          package_type: profile.type,
+          amount: profile.price,
+          customer: null,
+          payment_method: 'cash',
+          coordinator_id: null
+        });
 
-  const disconnectUser = (userId: string) => {
-    const user = activeUsers.find(u => u.id === userId);
-    if (user) {
-      setActiveUsers(prev => prev.filter(u => u.id !== userId));
-      toast.success(`Disconnected ${user.deviceName}`);
-    }
-  };
-
-  const extendSession = (userId: string) => {
-    const user = activeUsers.find(u => u.id === userId);
-    if (user) {
-      // Mock extending session
-      toast.success(`Extended session for ${user.deviceName}`);
+        toast.success(`Voucher generated: ${newVouchers[0].code}`);
+      }
+    } catch (error) {
+      // Error handled in hook
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -191,37 +118,32 @@ export const ModeratorDashboard = () => {
     }
   };
 
-  const formatTimeRemaining = (timeLimit?: number, timeUsed?: number) => {
-    if (!timeLimit) return 'Unlimited';
-    const remaining = timeLimit - (timeUsed || 0);
-    if (remaining <= 0) return 'Expired';
-    const hours = Math.floor(remaining / 60);
-    const minutes = remaining % 60;
-    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  const formatDuration = (start: string) => {
+    const diff = Date.now() - new Date(start).getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    }
+    return `${minutes}m`;
   };
 
-  const formatDataRemaining = (dataLimit?: number, dataUsed?: number) => {
-    if (!dataLimit) return 'Unlimited';
-    const remaining = dataLimit - (dataUsed || 0);
-    if (remaining <= 0) return 'Exhausted';
-    return `${remaining}MB`;
-  };
-
-  const getDataProgress = (dataLimit?: number, dataUsed?: number) => {
-    if (!dataLimit) return 0;
-    return Math.min((dataUsed || 0) / dataLimit * 100, 100);
-  };
-
-  const getTimeProgress = (timeLimit?: number, timeUsed?: number) => {
-    if (!timeLimit) return 0;
-    return Math.min((timeUsed || 0) / timeLimit * 100, 100);
-  };
-
-  const filteredUsers = activeUsers.filter(user =>
-    user.voucherCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.deviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.ipAddress.includes(searchTerm)
+  const filteredUsers = users.filter(user =>
+    user.voucher_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.ip_address.includes(searchTerm)
   );
+
+  const recentVouchers = vouchers.slice(0, 10);
+
+  if (vouchersLoading || usersLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -253,7 +175,7 @@ export const ModeratorDashboard = () => {
           className="flex items-center space-x-2"
         >
           <Users className="h-4 w-4" />
-          <span>Active Sessions ({activeUsers.length})</span>
+          <span>Active Sessions ({users.length})</span>
         </Button>
         <Button
           variant={activeView === 'history' ? 'default' : 'ghost'}
@@ -268,7 +190,6 @@ export const ModeratorDashboard = () => {
       {/* Generate Voucher Section */}
       {activeView === 'generate' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Voucher Generation Form */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -315,62 +236,56 @@ export const ModeratorDashboard = () => {
               )}
 
               <Button 
-                onClick={generateVoucher} 
+                onClick={handleGenerateVoucher} 
                 className="w-full" 
-                disabled={!selectedProfile}
+                disabled={!selectedProfile || isGenerating}
               >
-                <Plus className="h-4 w-4 mr-2" />
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
                 Generate Voucher & QR Code
               </Button>
             </CardContent>
           </Card>
 
-          {/* Generated Voucher Display */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <QrCode className="h-5 w-5" />
-                <span>Generated Voucher</span>
+                <span>Recent Vouchers</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {generatedVoucher ? (
-                <div className="text-center space-y-4">
-                  <div className="bg-gray-100 p-6 rounded-lg">
-                    <div className="w-48 h-48 bg-white mx-auto mb-4 rounded-lg flex items-center justify-center border-2 border-gray-300">
-                      <QrCode className="h-24 w-24 text-gray-400" />
-                      <div className="absolute text-xs text-gray-500 mt-20">QR Code</div>
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {recentVouchers.map((voucher) => (
+                  <div key={voucher.id} className="bg-gray-50 p-3 rounded-lg">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-mono text-sm font-semibold">{voucher.code}</p>
+                        <p className="text-xs text-gray-600">{voucher.description}</p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(voucher.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <Badge className={getStatusColor(voucher.status)}>
+                          {voucher.status}
+                        </Badge>
+                        <p className="text-sm font-semibold mt-1">${voucher.price}</p>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">Scan with mobile device</p>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-600">Voucher Code:</p>
-                    <div className="bg-gray-900 text-white p-3 rounded-lg font-mono text-lg">
-                      {generatedVoucher.code}
-                    </div>
+                ))}
+                {recentVouchers.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <QrCode className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p>No vouchers generated yet</p>
+                    <p className="text-sm">Generate your first voucher above</p>
                   </div>
-
-                  <div className="bg-green-50 p-4 rounded-lg text-sm">
-                    <p className="text-green-800 font-semibold">Instructions for Customer:</p>
-                    <ul className="text-green-700 mt-2 space-y-1">
-                      <li>📱 <strong>Mobile:</strong> Scan QR code to connect instantly</li>
-                      <li>💻 <strong>Laptop/PC:</strong> Enter voucher code on WiFi login page</li>
-                      <li>🔗 <strong>Network:</strong> Connect to "Free-WiFi-Hotspot"</li>
-                    </ul>
-                  </div>
-
-                  <Button variant="outline" className="w-full">
-                    <Download className="h-4 w-4 mr-2" />
-                    Print Voucher
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <QrCode className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <p>Generate a voucher to display QR code</p>
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -379,7 +294,6 @@ export const ModeratorDashboard = () => {
       {/* Active Sessions Section */}
       {activeView === 'sessions' && (
         <div className="space-y-6">
-          {/* Search and Controls */}
           <div className="flex justify-between items-center">
             <div className="relative w-96">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -390,13 +304,8 @@ export const ModeratorDashboard = () => {
                 className="pl-10"
               />
             </div>
-            <Button variant="outline">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
           </div>
 
-          {/* Active Users Table */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -411,10 +320,9 @@ export const ModeratorDashboard = () => {
                     <tr className="border-b">
                       <th className="text-left p-3">Device</th>
                       <th className="text-left p-3">Voucher Code</th>
-                      <th className="text-left p-3">Time Remaining</th>
+                      <th className="text-left p-3">Session Time</th>
                       <th className="text-left p-3">Data Usage</th>
                       <th className="text-left p-3">Status</th>
-                      <th className="text-left p-3">Signal</th>
                       <th className="text-left p-3">Actions</th>
                     </tr>
                   </thead>
@@ -423,67 +331,51 @@ export const ModeratorDashboard = () => {
                       <tr key={user.id} className="border-b hover:bg-gray-50">
                         <td className="p-3">
                           <div className="flex items-center space-x-3">
-                            {getDeviceIcon(user.deviceType)}
+                            {getDeviceIcon(user.device_type)}
                             <div>
-                              <p className="font-medium">{user.deviceName}</p>
-                              <p className="text-sm text-gray-500">{user.ipAddress}</p>
+                              <p className="font-medium">{user.name}</p>
+                              <p className="text-sm text-gray-500">{user.ip_address}</p>
                             </div>
                           </div>
                         </td>
                         <td className="p-3">
-                          <code className="bg-gray-100 px-2 py-1 rounded text-sm">
-                            {user.voucherCode}
-                          </code>
+                          {user.voucher_code ? (
+                            <code className="bg-gray-100 px-2 py-1 rounded text-sm">
+                              {user.voucher_code}
+                            </code>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
                         </td>
-                        <td className="p-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2">
-                              <Timer className="h-3 w-3" />
-                              <span className="text-sm">{formatTimeRemaining(user.timeLimit, user.timeUsed)}</span>
-                            </div>
-                            {user.timeLimit && (
-                              <Progress value={getTimeProgress(user.timeLimit, user.timeUsed)} className="h-1" />
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2">
-                              <Database className="h-3 w-3" />
-                              <span className="text-sm">{user.dataUsed}MB / {formatDataRemaining(user.dataLimit, user.dataUsed)}</span>
-                            </div>
-                            {user.dataLimit && (
-                              <Progress value={getDataProgress(user.dataLimit, user.dataUsed)} className="h-1" />
-                            )}
-                          </div>
-                        </td>
+                        <td className="p-3">{formatDuration(user.session_start)}</td>
+                        <td className="p-3">{user.data_used}MB</td>
                         <td className="p-3">
                           <Badge className={getStatusColor(user.status)}>
                             {user.status}
                           </Badge>
                         </td>
                         <td className="p-3">
-                          <div className="flex items-center space-x-1">
-                            <div className={`w-2 h-2 rounded-full ${user.signalStrength > 80 ? 'bg-green-500' : user.signalStrength > 60 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
-                            <span className="text-sm">{user.signalStrength}%</span>
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex space-x-2">
-                            <Button variant="outline" size="sm" onClick={() => extendSession(user.id)}>
-                              <Clock className="h-3 w-3 mr-1" />
-                              Extend
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => disconnectUser(user.id)} className="text-red-600 hover:text-red-700">
-                              <Ban className="h-3 w-3 mr-1" />
-                              Disconnect
-                            </Button>
-                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => disconnectUser(user.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Ban className="h-3 w-3 mr-1" />
+                            Disconnect
+                          </Button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                {filteredUsers.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p>No active sessions</p>
+                    <p className="text-sm">Users will appear here when they connect</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -496,7 +388,7 @@ export const ModeratorDashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <History className="h-5 w-5" />
-              <span>Voucher History</span>
+              <span>Voucher History ({vouchers.length})</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -505,43 +397,49 @@ export const ModeratorDashboard = () => {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left p-3">Voucher Code</th>
-                    <th className="text-left p-3">Profile</th>
-                    <th className="text-left p-3">Generated</th>
+                    <th className="text-left p-3">Type</th>
+                    <th className="text-left p-3">Value</th>
+                    <th className="text-left p-3">Price</th>
                     <th className="text-left p-3">Status</th>
+                    <th className="text-left p-3">Generated</th>
                     <th className="text-left p-3">Used By</th>
-                    <th className="text-left p-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {voucherHistory.map((voucher) => (
+                  {vouchers.map((voucher) => (
                     <tr key={voucher.id} className="border-b hover:bg-gray-50">
                       <td className="p-3">
                         <code className="bg-gray-100 px-2 py-1 rounded text-sm">
                           {voucher.code}
                         </code>
                       </td>
-                      <td className="p-3">{voucher.profile.name}</td>
-                      <td className="p-3 text-sm text-gray-600">
-                        {voucher.generatedAt.toLocaleString()}
+                      <td className="p-3 capitalize">{voucher.package_type}</td>
+                      <td className="p-3">
+                        {voucher.value} {voucher.package_type === 'time' ? 'min' : 'MB'}
                       </td>
+                      <td className="p-3 font-semibold">${voucher.price}</td>
                       <td className="p-3">
                         <Badge className={getStatusColor(voucher.status)}>
                           {voucher.status}
                         </Badge>
                       </td>
                       <td className="p-3 text-sm text-gray-600">
-                        {voucher.usedBy || '-'}
+                        {new Date(voucher.created_at).toLocaleDateString()}
                       </td>
-                      <td className="p-3">
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-3 w-3 mr-1" />
-                          View
-                        </Button>
+                      <td className="p-3 text-sm text-gray-600">
+                        {voucher.used_by || '-'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              {vouchers.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <History className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>No voucher history</p>
+                  <p className="text-sm">Generate vouchers to see history</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

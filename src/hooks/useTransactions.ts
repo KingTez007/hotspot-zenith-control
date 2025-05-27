@@ -20,6 +20,7 @@ export const useTransactions = () => {
 
   const fetchTransactions = async () => {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
@@ -45,6 +46,7 @@ export const useTransactions = () => {
 
       if (error) throw error;
       setTransactions(prev => [data, ...prev]);
+      toast.success('Transaction recorded successfully');
       return data;
     } catch (error) {
       console.error('Error adding transaction:', error);
@@ -55,6 +57,21 @@ export const useTransactions = () => {
 
   useEffect(() => {
     fetchTransactions();
+
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('transactions_changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'transactions' },
+        () => {
+          fetchTransactions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   return {
