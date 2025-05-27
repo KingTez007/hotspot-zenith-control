@@ -15,56 +15,17 @@ import {
   Wifi,
   DollarSign,
   QrCode,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
-
-interface Voucher {
-  id: string;
-  code: string;
-  type: 'time' | 'data';
-  value: number;
-  price: number;
-  status: 'active' | 'used' | 'expired';
-  createdAt: Date;
-  usedAt?: Date;
-  description: string;
-}
+import { useVouchers } from "@/hooks/useVouchers";
+import { useTransactions } from "@/hooks/useTransactions";
 
 export const VoucherManagement = () => {
-  const [vouchers, setVouchers] = useState<Voucher[]>([
-    {
-      id: '1',
-      code: 'WIFI-1H-001',
-      type: 'time',
-      value: 60,
-      price: 5,
-      status: 'active',
-      createdAt: new Date(),
-      description: '1 Hour Access'
-    },
-    {
-      id: '2',
-      code: 'WIFI-3H-002',
-      type: 'time',
-      value: 180,
-      price: 12,
-      status: 'used',
-      createdAt: new Date(),
-      usedAt: new Date(),
-      description: '3 Hours Access'
-    },
-    {
-      id: '3',
-      code: 'WIFI-1GB-003',
-      type: 'data',
-      value: 1024,
-      price: 8,
-      status: 'active',
-      createdAt: new Date(),
-      description: '1GB Data Package'
-    }
-  ]);
+  const { vouchers, isLoading, generateVoucher, refreshVouchers } = useVouchers();
+  const { transactions } = useTransactions();
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const [newVoucher, setNewVoucher] = useState({
     type: 'time' as 'time' | 'data',
@@ -74,13 +35,7 @@ export const VoucherManagement = () => {
     description: ''
   });
 
-  const generateVoucherCode = (type: string, value: string) => {
-    const prefix = type === 'time' ? 'TIME' : 'DATA';
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    return `${prefix}-${value}-${random}`;
-  };
-
-  const handleGenerateVouchers = () => {
+  const handleGenerateVouchers = async () => {
     const quantity = parseInt(newVoucher.quantity);
     const value = parseInt(newVoucher.value);
     const price = parseFloat(newVoucher.price);
@@ -90,31 +45,28 @@ export const VoucherManagement = () => {
       return;
     }
 
-    const newVouchers: Voucher[] = [];
-    for (let i = 0; i < quantity; i++) {
-      newVouchers.push({
-        id: Date.now().toString() + i,
-        code: generateVoucherCode(newVoucher.type, newVoucher.value),
-        type: newVoucher.type,
+    setIsGenerating(true);
+    try {
+      await generateVoucher(
+        newVoucher.type,
         value,
         price,
-        status: 'active',
-        createdAt: new Date(),
-        description: newVoucher.description || `${value} ${newVoucher.type === 'time' ? 'minutes' : 'MB'} access`
+        quantity,
+        newVoucher.description
+      );
+      
+      setNewVoucher({
+        type: 'time',
+        value: '',
+        price: '',
+        quantity: '1',
+        description: ''
       });
+    } catch (error) {
+      // Error handled in hook
+    } finally {
+      setIsGenerating(false);
     }
-
-    setVouchers(prev => [...newVouchers, ...prev]);
-    toast.success(`Generated ${quantity} voucher(s) successfully!`);
-    
-    // Reset form
-    setNewVoucher({
-      type: 'time',
-      value: '',
-      price: '',
-      quantity: '1',
-      description: ''
-    });
   };
 
   const copyVoucherCode = (code: string) => {
@@ -127,7 +79,7 @@ export const VoucherManagement = () => {
     const csvContent = [
       'Code,Type,Value,Price,Description,Created',
       ...activeVouchers.map(v => 
-        `${v.code},${v.type},${v.value},${v.price},"${v.description}",${v.createdAt.toLocaleDateString()}`
+        `${v.code},${v.package_type},${v.value},${v.price},"${v.description || ''}",${new Date(v.created_at).toLocaleDateString()}`
       )
     ].join('\n');
 
@@ -152,7 +104,15 @@ export const VoucherManagement = () => {
 
   const activeVouchers = vouchers.filter(v => v.status === 'active').length;
   const usedVouchers = vouchers.filter(v => v.status === 'used').length;
-  const totalRevenue = vouchers.filter(v => v.status === 'used').reduce((sum, v) => sum + v.price, 0);
+  const totalRevenue = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -162,10 +122,16 @@ export const VoucherManagement = () => {
           <h1 className="text-3xl font-bold text-gray-900">Voucher Management</h1>
           <p className="text-gray-600 mt-1">Generate, track, and manage WiFi access vouchers</p>
         </div>
-        <Button onClick={exportVouchers}>
-          <Download className="h-4 w-4 mr-2" />
-          Export Vouchers
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={refreshVouchers} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button onClick={exportVouchers}>
+            <Download className="h-4 w-4 mr-2" />
+            Export Vouchers
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -196,7 +162,7 @@ export const VoucherManagement = () => {
             <DollarSign className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">${totalRevenue}</div>
+            <div className="text-2xl font-bold text-purple-600">${totalRevenue.toFixed(2)}</div>
           </CardContent>
         </Card>
 
@@ -223,9 +189,12 @@ export const VoucherManagement = () => {
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
               <Label htmlFor="type">Type</Label>
-              <Select value={newVoucher.type} onValueChange={(value: 'time' | 'data') => 
-                setNewVoucher(prev => ({ ...prev, type: value }))
-              }>
+              <Select 
+                value={newVoucher.type} 
+                onValueChange={(value: 'time' | 'data') => 
+                  setNewVoucher(prev => ({ ...prev, type: value }))
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -283,8 +252,16 @@ export const VoucherManagement = () => {
             </div>
 
             <div className="flex items-end">
-              <Button onClick={handleGenerateVouchers} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button 
+                onClick={handleGenerateVouchers} 
+                className="w-full"
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
                 Generate
               </Button>
             </div>
@@ -333,12 +310,12 @@ export const VoucherManagement = () => {
                     </td>
                     <td className="p-3">
                       <div className="flex items-center space-x-2">
-                        {voucher.type === 'time' ? <Clock className="h-4 w-4" /> : <Wifi className="h-4 w-4" />}
-                        <span className="capitalize">{voucher.type}</span>
+                        {voucher.package_type === 'time' ? <Clock className="h-4 w-4" /> : <Wifi className="h-4 w-4" />}
+                        <span className="capitalize">{voucher.package_type}</span>
                       </div>
                     </td>
                     <td className="p-3">
-                      {voucher.value} {voucher.type === 'time' ? 'min' : 'MB'}
+                      {voucher.value} {voucher.package_type === 'time' ? 'min' : 'MB'}
                     </td>
                     <td className="p-3 font-semibold">${voucher.price}</td>
                     <td className="p-3">
@@ -347,7 +324,7 @@ export const VoucherManagement = () => {
                       </Badge>
                     </td>
                     <td className="p-3 text-sm text-gray-600">
-                      {voucher.createdAt.toLocaleDateString()}
+                      {new Date(voucher.created_at).toLocaleDateString()}
                     </td>
                     <td className="p-3">
                       <Button variant="outline" size="sm">

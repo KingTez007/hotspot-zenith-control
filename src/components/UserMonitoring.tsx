@@ -1,8 +1,9 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { 
   Users, 
   Smartphone, 
@@ -12,67 +13,18 @@ import {
   Activity,
   Wifi,
   Ban,
-  RefreshCw
+  RefreshCw,
+  Loader2,
+  Search
 } from "lucide-react";
-
-interface ActiveUser {
-  id: string;
-  deviceName: string;
-  deviceType: 'mobile' | 'laptop' | 'tablet';
-  ipAddress: string;
-  macAddress: string;
-  sessionStart: Date;
-  dataUsed: number;
-  status: 'active' | 'idle';
-  voucher?: string;
-  location?: string;
-}
+import { useHotspotUsers } from "@/hooks/useHotspotUsers";
 
 export const UserMonitoring = () => {
-  const [users, setUsers] = useState<ActiveUser[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Simulate real-time data
-  useEffect(() => {
-    const generateMockUsers = (): ActiveUser[] => {
-      const deviceTypes: Array<'mobile' | 'laptop' | 'tablet'> = ['mobile', 'laptop', 'tablet'];
-      const deviceNames = [
-        'iPhone 14 Pro', 'Samsung Galaxy S23', 'MacBook Pro', 'Dell Laptop',
-        'iPad Air', 'Google Pixel 7', 'Surface Pro', 'OnePlus 11'
-      ];
-      
-      return Array.from({ length: Math.floor(Math.random() * 20) + 10 }, (_, i) => ({
-        id: `user-${i + 1}`,
-        deviceName: deviceNames[Math.floor(Math.random() * deviceNames.length)],
-        deviceType: deviceTypes[Math.floor(Math.random() * deviceTypes.length)],
-        ipAddress: `192.168.1.${Math.floor(Math.random() * 254) + 1}`,
-        macAddress: `AA:BB:CC:DD:EE:${(Math.floor(Math.random() * 256)).toString(16).padStart(2, '0').toUpperCase()}`,
-        sessionStart: new Date(Date.now() - Math.random() * 3600000),
-        dataUsed: Math.floor(Math.random() * 500),
-        status: Math.random() > 0.3 ? 'active' : 'idle',
-        voucher: Math.random() > 0.5 ? `V${Math.floor(Math.random() * 10000)}` : undefined,
-        location: Math.random() > 0.7 ? `Table ${Math.floor(Math.random() * 20) + 1}` : undefined
-      }));
-    };
-
-    setUsers(generateMockUsers());
-    
-    const interval = setInterval(() => {
-      setUsers(generateMockUsers());
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 1000);
-  };
+  const { users, isLoading, disconnectUser, refreshUsers } = useHotspotUsers();
+  const [searchTerm, setSearchTerm] = useState('');
 
   const getDeviceIcon = (type: string) => {
-    switch (type) {
+    switch (type.toLowerCase()) {
       case 'mobile': return <Smartphone className="h-4 w-4" />;
       case 'laptop': return <Laptop className="h-4 w-4" />;
       case 'tablet': return <Tablet className="h-4 w-4" />;
@@ -80,8 +32,8 @@ export const UserMonitoring = () => {
     }
   };
 
-  const formatDuration = (start: Date) => {
-    const diff = Date.now() - start.getTime();
+  const formatDuration = (start: string) => {
+    const diff = Date.now() - new Date(start).getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(minutes / 60);
     
@@ -91,8 +43,22 @@ export const UserMonitoring = () => {
     return `${minutes}m`;
   };
 
+  const filteredUsers = users.filter(user =>
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.ip_address.includes(searchTerm) ||
+    (user.voucher_code && user.voucher_code.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   const activeUsers = users.filter(u => u.status === 'active').length;
-  const totalDataUsage = users.reduce((sum, user) => sum + user.dataUsed, 0);
+  const totalDataUsage = users.reduce((sum, user) => sum + user.data_used, 0);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -102,8 +68,8 @@ export const UserMonitoring = () => {
           <h1 className="text-3xl font-bold text-gray-900">User Monitoring</h1>
           <p className="text-gray-600 mt-1">Real-time monitoring of connected devices and sessions</p>
         </div>
-        <Button onClick={handleRefresh} disabled={isRefreshing}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+        <Button onClick={refreshUsers}>
+          <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
       </div>
@@ -151,12 +117,25 @@ export const UserMonitoring = () => {
         </Card>
       </div>
 
+      {/* Search */}
+      <div className="flex justify-between items-center">
+        <div className="relative w-96">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Input
+            placeholder="Search by name, voucher code, or IP..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
       {/* Users Table */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Users className="h-5 w-5" />
-            <span>Connected Devices</span>
+            <span>Connected Devices ({filteredUsers.length})</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -174,34 +153,39 @@ export const UserMonitoring = () => {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <tr key={user.id} className="border-b hover:bg-gray-50">
                     <td className="p-3">
                       <div className="flex items-center space-x-3">
-                        {getDeviceIcon(user.deviceType)}
+                        {getDeviceIcon(user.device_type)}
                         <div>
-                          <p className="font-medium">{user.deviceName}</p>
-                          <p className="text-sm text-gray-500">{user.macAddress}</p>
+                          <p className="font-medium">{user.name}</p>
+                          <p className="text-sm text-gray-500">{user.mac_address || 'N/A'}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="p-3 font-mono text-sm">{user.ipAddress}</td>
-                    <td className="p-3">{formatDuration(user.sessionStart)}</td>
-                    <td className="p-3">{user.dataUsed}MB</td>
+                    <td className="p-3 font-mono text-sm">{user.ip_address}</td>
+                    <td className="p-3">{formatDuration(user.session_start)}</td>
+                    <td className="p-3">{user.data_used}MB</td>
                     <td className="p-3">
                       <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
                         {user.status}
                       </Badge>
                     </td>
                     <td className="p-3">
-                      {user.voucher ? (
-                        <Badge variant="outline">{user.voucher}</Badge>
+                      {user.voucher_code ? (
+                        <Badge variant="outline">{user.voucher_code}</Badge>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
                     <td className="p-3">
-                      <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() => disconnectUser(user.id)}
+                      >
                         <Ban className="h-3 w-3 mr-1" />
                         Disconnect
                       </Button>

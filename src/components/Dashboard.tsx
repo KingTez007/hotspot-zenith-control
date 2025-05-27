@@ -9,15 +9,40 @@ import {
   ArrowRight,
   Wifi,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Loader2
 } from "lucide-react";
 import type { ActiveView } from "@/pages/Index";
+import { useVouchers } from "@/hooks/useVouchers";
+import { useHotspotUsers } from "@/hooks/useHotspotUsers";
+import { useTransactions } from "@/hooks/useTransactions";
 
 interface DashboardProps {
   onNavigate: (view: ActiveView) => void;
 }
 
 export const Dashboard = ({ onNavigate }: DashboardProps) => {
+  const { vouchers, isLoading: vouchersLoading } = useVouchers();
+  const { users, isLoading: usersLoading } = useHotspotUsers();
+  const { transactions, isLoading: transactionsLoading } = useTransactions();
+
+  const isLoading = vouchersLoading || usersLoading || transactionsLoading;
+
+  const activeUsers = users.filter(u => u.status === 'active').length;
+  const activeVouchers = vouchers.filter(v => v.status === 'active').length;
+  const todayRevenue = transactions
+    .filter(t => new Date(t.created_at).toDateString() === new Date().toDateString())
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const totalDataUsage = users.reduce((sum, user) => sum + user.data_used, 0);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -42,10 +67,10 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">247</div>
+            <div className="text-2xl font-bold text-blue-600">{activeUsers}</div>
             <p className="text-xs text-gray-600 flex items-center mt-1">
               <TrendingUp className="h-3 w-3 mr-1" />
-              +12% from yesterday
+              {users.length} total connected
             </p>
           </CardContent>
         </Card>
@@ -58,8 +83,8 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">1,234</div>
-            <p className="text-xs text-gray-600">856 used today</p>
+            <div className="text-2xl font-bold text-green-600">{activeVouchers}</div>
+            <p className="text-xs text-gray-600">{vouchers.filter(v => v.status === 'used').length} used today</p>
           </CardContent>
         </Card>
 
@@ -71,21 +96,21 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">$2,847</div>
-            <p className="text-xs text-gray-600">Target: $3,000</p>
+            <div className="text-2xl font-bold text-purple-600">${todayRevenue.toFixed(2)}</div>
+            <p className="text-xs text-gray-600">{transactions.length} total transactions</p>
           </CardContent>
         </Card>
 
         <Card className="hover:shadow-xl transition-shadow bg-white/90 backdrop-blur-sm border-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bandwidth Usage</CardTitle>
+            <CardTitle className="text-sm font-medium">Data Usage</CardTitle>
             <div className="bg-orange-100 p-2 rounded-lg">
               <Activity className="h-4 w-4 text-orange-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">78%</div>
-            <p className="text-xs text-gray-600">2.4TB / 3.1TB</p>
+            <div className="text-2xl font-bold text-orange-600">{totalDataUsage}MB</div>
+            <p className="text-xs text-gray-600">Total consumed</p>
           </CardContent>
         </Card>
       </div>
@@ -133,27 +158,29 @@ export const Dashboard = ({ onNavigate }: DashboardProps) => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-center text-white text-sm font-medium">JD</div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">New user connected</p>
-                  <p className="text-xs text-gray-500">Device: iPhone 14 Pro - 2 min ago</p>
+              {users.slice(0, 3).map((user, index) => (
+                <div key={user.id} className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">User connected</p>
+                    <p className="text-xs text-gray-500">Device: {user.name} - {user.ip_address}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 flex items-center justify-center text-white text-sm font-medium">MS</div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Voucher redeemed</p>
-                  <p className="text-xs text-gray-500">1-hour pass - $5.00 - 5 min ago</p>
+              ))}
+              
+              {transactions.slice(0, 2).map((transaction) => (
+                <div key={transaction.id} className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium">
+                    $
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Payment received</p>
+                    <p className="text-xs text-gray-500">{transaction.voucher_code} - ${transaction.amount}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium">TJ</div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Payment received</p>
-                  <p className="text-xs text-gray-500">Premium voucher - $15.00 - 8 min ago</p>
-                </div>
-              </div>
+              ))}
             </div>
           </CardContent>
         </Card>
