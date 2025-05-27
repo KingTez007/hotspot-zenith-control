@@ -16,57 +16,115 @@ import {
   DollarSign,
   QrCode,
   RefreshCw,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { useVouchers } from "@/hooks/useVouchers";
 import { useTransactions } from "@/hooks/useTransactions";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { validateVoucherData } from "@/utils/validation";
+import { useFormValidation } from "@/hooks/useFormValidation";
 
 export const VoucherManagement = () => {
-  const { vouchers, isLoading, generateVoucher, refreshVouchers } = useVouchers();
+  const { vouchers, isLoading, generateVoucher, refreshVouchers, deleteVoucher } = useVouchers();
   const { transactions } = useTransactions();
   const [isGenerating, setIsGenerating] = useState(false);
+  const { dialog, showConfirmDialog, hideConfirmDialog, handleConfirm } = useConfirmDialog();
 
-  const [newVoucher, setNewVoucher] = useState({
+  const initialFormValues = {
     type: 'time' as 'time' | 'data',
     value: '',
     price: '',
     quantity: '1',
     description: ''
-  });
+  };
+
+  const validationRules = {
+    type: (value: string) => !value ? 'Package type is required' : null,
+    value: (value: string) => {
+      if (!value) return 'Value is required';
+      const num = parseInt(value);
+      if (isNaN(num) || num <= 0) return 'Value must be a positive number';
+      return null;
+    },
+    price: (value: string) => {
+      if (!value) return 'Price is required';
+      const num = parseFloat(value);
+      if (isNaN(num) || num <= 0) return 'Price must be a positive number';
+      if (num > 1000) return 'Price cannot exceed $1000';
+      return null;
+    },
+    quantity: (value: string) => {
+      if (!value) return 'Quantity is required';
+      const num = parseInt(value);
+      if (isNaN(num) || num <= 0) return 'Quantity must be a positive number';
+      if (num > 100) return 'Cannot generate more than 100 vouchers at once';
+      return null;
+    },
+    description: () => null // Optional field
+  };
+
+  const form = useFormValidation(initialFormValues, validationRules);
 
   const handleGenerateVouchers = async () => {
-    const quantity = parseInt(newVoucher.quantity);
-    const value = parseInt(newVoucher.value);
-    const price = parseFloat(newVoucher.price);
-
-    if (!value || !price || quantity < 1) {
-      toast.error("Please fill in all required fields");
+    if (!form.validateAll()) {
+      toast.error("Please fix the form errors before generating vouchers");
       return;
     }
 
-    setIsGenerating(true);
-    try {
-      await generateVoucher(
-        newVoucher.type,
-        value,
-        price,
-        quantity,
-        newVoucher.description
-      );
-      
-      setNewVoucher({
-        type: 'time',
-        value: '',
-        price: '',
-        quantity: '1',
-        description: ''
-      });
-    } catch (error) {
-      // Error handled in hook
-    } finally {
-      setIsGenerating(false);
+    const { type, value, price, quantity, description } = form.values;
+    const validation = validateVoucherData(type, value, price, quantity);
+    
+    if (!validation.isValid) {
+      validation.errors.forEach(error => toast.error(error));
+      return;
     }
+
+    const quantityNum = parseInt(quantity);
+    const valueNum = parseInt(value);
+    const priceNum = parseFloat(price);
+
+    showConfirmDialog({
+      title: 'Generate Vouchers',
+      message: `Generate ${quantityNum} voucher(s) of ${valueNum} ${type === 'time' ? 'minutes' : 'MB'} for $${priceNum} each?`,
+      confirmText: 'Generate',
+      variant: 'default',
+      onConfirm: async () => {
+        setIsGenerating(true);
+        try {
+          await generateVoucher(type, valueNum, priceNum, quantityNum, description);
+          form.reset();
+          toast.success(`Successfully generated ${quantityNum} voucher(s)!`);
+        } catch (error) {
+          console.error('Error generating vouchers:', error);
+          toast.error('Failed to generate vouchers. Please try again.');
+        } finally {
+          setIsGenerating(false);
+        }
+      }
+    });
+  };
+
+  const handleDeleteVoucher = (voucherId: string, voucherCode: string) => {
+    showConfirmDialog({
+      title: 'Delete Voucher',
+      message: `Are you sure you want to delete voucher "${voucherCode}"? This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'destructive',
+      onConfirm: async () => {
+        try {
+          await deleteVoucher(voucherId);
+          toast.success('Voucher deleted successfully');
+        } catch (error) {
+          console.error('Error deleting voucher:', error);
+          toast.error('Failed to delete voucher');
+        }
+      }
+    });
   };
 
   const copyVoucherCode = (code: string) => {
@@ -75,7 +133,17 @@ export const VoucherManagement = () => {
   };
 
   const exportVouchers = () => {
+    if (vouchers.length === 0) {
+      toast.error("No vouchers to export");
+      return;
+    }
+
     const activeVouchers = vouchers.filter(v => v.status === 'active');
+    if (activeVouchers.length === 0) {
+      toast.error("No active vouchers to export");
+      return;
+    }
+
     const csvContent = [
       'Code,Type,Value,Price,Description,Created',
       ...activeVouchers.map(v => 
@@ -90,7 +158,7 @@ export const VoucherManagement = () => {
     a.download = `vouchers-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-    toast.success("Vouchers exported successfully!");
+    toast.success(`Exported ${activeVouchers.length} active vouchers successfully!`);
   };
 
   const getStatusColor = (status: string) => {
@@ -127,7 +195,7 @@ export const VoucherManagement = () => {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button onClick={exportVouchers}>
+          <Button onClick={exportVouchers} disabled={vouchers.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Export Vouchers
           </Button>
@@ -190,12 +258,10 @@ export const VoucherManagement = () => {
             <div>
               <Label htmlFor="type">Type</Label>
               <Select 
-                value={newVoucher.type} 
-                onValueChange={(value: 'time' | 'data') => 
-                  setNewVoucher(prev => ({ ...prev, type: value }))
-                }
+                value={form.values.type} 
+                onValueChange={(value: 'time' | 'data') => form.setValue('type', value)}
               >
-                <SelectTrigger>
+                <SelectTrigger className={form.errors.type && form.touched.type ? 'border-red-500' : ''}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -203,19 +269,33 @@ export const VoucherManagement = () => {
                   <SelectItem value="data">Data-based</SelectItem>
                 </SelectContent>
               </Select>
+              {form.errors.type && form.touched.type && (
+                <p className="text-sm text-red-500 mt-1 flex items-center">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {form.errors.type}
+                </p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="value">
-                {newVoucher.type === 'time' ? 'Minutes' : 'MB'}
+                {form.values.type === 'time' ? 'Minutes' : 'MB'}
               </Label>
               <Input
                 id="value"
                 type="number"
-                value={newVoucher.value}
-                onChange={(e) => setNewVoucher(prev => ({ ...prev, value: e.target.value }))}
-                placeholder={newVoucher.type === 'time' ? '60' : '1024'}
+                value={form.values.value}
+                onChange={(e) => form.setValue('value', e.target.value)}
+                onBlur={() => form.setFieldTouched('value')}
+                placeholder={form.values.type === 'time' ? '60' : '1024'}
+                className={form.errors.value && form.touched.value ? 'border-red-500' : ''}
               />
+              {form.errors.value && form.touched.value && (
+                <p className="text-sm text-red-500 mt-1 flex items-center">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {form.errors.value}
+                </p>
+              )}
             </div>
 
             <div>
@@ -224,10 +304,18 @@ export const VoucherManagement = () => {
                 id="price"
                 type="number"
                 step="0.01"
-                value={newVoucher.price}
-                onChange={(e) => setNewVoucher(prev => ({ ...prev, price: e.target.value }))}
+                value={form.values.price}
+                onChange={(e) => form.setValue('price', e.target.value)}
+                onBlur={() => form.setFieldTouched('price')}
                 placeholder="5.00"
+                className={form.errors.price && form.touched.price ? 'border-red-500' : ''}
               />
+              {form.errors.price && form.touched.price && (
+                <p className="text-sm text-red-500 mt-1 flex items-center">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {form.errors.price}
+                </p>
+              )}
             </div>
 
             <div>
@@ -235,18 +323,26 @@ export const VoucherManagement = () => {
               <Input
                 id="quantity"
                 type="number"
-                value={newVoucher.quantity}
-                onChange={(e) => setNewVoucher(prev => ({ ...prev, quantity: e.target.value }))}
+                value={form.values.quantity}
+                onChange={(e) => form.setValue('quantity', e.target.value)}
+                onBlur={() => form.setFieldTouched('quantity')}
                 placeholder="1"
+                className={form.errors.quantity && form.touched.quantity ? 'border-red-500' : ''}
               />
+              {form.errors.quantity && form.touched.quantity && (
+                <p className="text-sm text-red-500 mt-1 flex items-center">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {form.errors.quantity}
+                </p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="description">Description</Label>
               <Input
                 id="description"
-                value={newVoucher.description}
-                onChange={(e) => setNewVoucher(prev => ({ ...prev, description: e.target.value }))}
+                value={form.values.description}
+                onChange={(e) => form.setValue('description', e.target.value)}
                 placeholder="Optional"
               />
             </div>
@@ -255,7 +351,7 @@ export const VoucherManagement = () => {
               <Button 
                 onClick={handleGenerateVouchers} 
                 className="w-full"
-                disabled={isGenerating}
+                disabled={isGenerating || !form.isValid}
               >
                 {isGenerating ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -274,71 +370,97 @@ export const VoucherManagement = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Ticket className="h-5 w-5" />
-            <span>Generated Vouchers</span>
+            <span>Generated Vouchers ({vouchers.length})</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-3">Code</th>
-                  <th className="text-left p-3">Type</th>
-                  <th className="text-left p-3">Value</th>
-                  <th className="text-left p-3">Price</th>
-                  <th className="text-left p-3">Status</th>
-                  <th className="text-left p-3">Created</th>
-                  <th className="text-left p-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vouchers.map((voucher) => (
-                  <tr key={voucher.id} className="border-b hover:bg-gray-50">
-                    <td className="p-3">
-                      <div className="flex items-center space-x-2">
-                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
-                          {voucher.code}
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyVoucherCode(voucher.code)}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex items-center space-x-2">
-                        {voucher.package_type === 'time' ? <Clock className="h-4 w-4" /> : <Wifi className="h-4 w-4" />}
-                        <span className="capitalize">{voucher.package_type}</span>
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      {voucher.value} {voucher.package_type === 'time' ? 'min' : 'MB'}
-                    </td>
-                    <td className="p-3 font-semibold">${voucher.price}</td>
-                    <td className="p-3">
-                      <Badge className={getStatusColor(voucher.status)}>
-                        {voucher.status}
-                      </Badge>
-                    </td>
-                    <td className="p-3 text-sm text-gray-600">
-                      {new Date(voucher.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="p-3">
-                      <Button variant="outline" size="sm">
-                        <QrCode className="h-3 w-3 mr-1" />
-                        QR Code
-                      </Button>
-                    </td>
+          {vouchers.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Ticket className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No vouchers generated yet</p>
+              <p className="text-sm">Create your first voucher using the form above</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-3">Code</th>
+                    <th className="text-left p-3">Type</th>
+                    <th className="text-left p-3">Value</th>
+                    <th className="text-left p-3">Price</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-left p-3">Created</th>
+                    <th className="text-left p-3">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {vouchers.map((voucher) => (
+                    <tr key={voucher.id} className="border-b hover:bg-gray-50">
+                      <td className="p-3">
+                        <div className="flex items-center space-x-2">
+                          <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                            {voucher.code}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyVoucherCode(voucher.code)}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center space-x-2">
+                          {voucher.package_type === 'time' ? <Clock className="h-4 w-4" /> : <Wifi className="h-4 w-4" />}
+                          <span className="capitalize">{voucher.package_type}</span>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        {voucher.value} {voucher.package_type === 'time' ? 'min' : 'MB'}
+                      </td>
+                      <td className="p-3 font-semibold">${voucher.price}</td>
+                      <td className="p-3">
+                        <Badge className={getStatusColor(voucher.status)}>
+                          {voucher.status}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-sm text-gray-600">
+                        {new Date(voucher.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex space-x-2">
+                          <Button variant="outline" size="sm">
+                            <QrCode className="h-3 w-3 mr-1" />
+                            QR Code
+                          </Button>
+                          {voucher.status === 'active' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDeleteVoucher(voucher.id, voucher.code)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        dialog={dialog}
+        onConfirm={handleConfirm}
+        onCancel={hideConfirmDialog}
+      />
     </div>
   );
 };

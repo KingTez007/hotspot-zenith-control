@@ -70,11 +70,26 @@ export const useVouchers = () => {
       }
 
       setVouchers(prev => [...newVouchers, ...prev]);
-      toast.success(`Generated ${quantity} voucher(s) successfully!`);
       return newVouchers;
     } catch (error) {
       console.error('Error generating vouchers:', error);
       toast.error('Failed to generate vouchers');
+      throw error;
+    }
+  };
+
+  const deleteVoucher = async (voucherId: string) => {
+    try {
+      const { error } = await supabase
+        .from('vouchers')
+        .delete()
+        .eq('id', voucherId);
+
+      if (error) throw error;
+
+      setVouchers(prev => prev.filter(v => v.id !== voucherId));
+    } catch (error) {
+      console.error('Error deleting voucher:', error);
       throw error;
     }
   };
@@ -137,6 +152,7 @@ export const useVouchers = () => {
     isLoading,
     generateVoucher,
     useVoucher,
+    deleteVoucher,
     refreshVouchers: fetchVouchers
   };
 };
