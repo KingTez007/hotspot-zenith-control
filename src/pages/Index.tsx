@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
 import { UserMonitoring } from "@/components/UserMonitoring";
@@ -13,63 +13,25 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Wifi, Shield, Users, BarChart3, LogOut, Menu } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { signOut } from "@/lib/auth";
-import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Wifi, Shield, Users, BarChart3, Menu, Crown, User } from "lucide-react";
+import { ModeProvider, useMode, UserMode } from "@/contexts/ModeContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export type ActiveView = 'dashboard' | 'users' | 'vouchers' | 'revenue' | 'analytics' | 'settings';
 
-const Index = () => {
+const IndexContent = () => {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, profile, isLoading } = useAuth();
-  const navigate = useNavigate();
+  const { currentMode, setCurrentMode, isAdmin, isCoordinator, isUser } = useMode();
   const isMobile = useIsMobile();
-  
-  // Redirect to auth if not authenticated
-  useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/auth');
-    }
-  }, [user, isLoading, navigate]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-        <div className="bg-white p-6 rounded-lg shadow-lg">
-          <p className="text-lg">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user || !profile) {
-    return null;
-  }
-
-  const userRole = profile.role as 'admin' | 'coordinator' | 'user';
-  const isAdmin = userRole === 'admin';
-  const isCoordinator = userRole === 'admin' || userRole === 'coordinator';
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      toast.success("Logged out successfully");
-      navigate('/auth');
-    } catch (error: any) {
-      toast.error(`Logout failed: ${error.message}`);
-    }
-  };
 
   const renderActiveView = () => {
-    if (userRole === 'user') {
+    if (isUser) {
       return <UserDashboard />;
     }
 
-    if (userRole === 'coordinator') {
+    if (isCoordinator) {
       return <ModeratorDashboard />;
     }
 
@@ -92,14 +54,14 @@ const Index = () => {
   };
 
   const getRoleInfo = () => {
-    switch (userRole) {
+    switch (currentMode) {
       case 'admin':
         return {
           name: "System Administrator",
           description: "Full system configuration, user & location management, marketing campaigns, advanced reporting",
           badge: "Administrator",
           color: "bg-red-500",
-          icon: Shield,
+          icon: Crown,
           responsibilities: [
             "Configure system-wide settings & security",
             "Manage all user accounts & roles",
@@ -114,7 +76,7 @@ const Index = () => {
           description: "User management, voucher/QR generation, session monitoring, billing tasks, customer support",
           badge: "Moderator",
           color: "bg-blue-500",
-          icon: Users,
+          icon: Shield,
           responsibilities: [
             "Generate vouchers & QR codes",
             "Monitor active sessions",
@@ -129,7 +91,7 @@ const Index = () => {
           description: "Connect using vouchers/QR codes, view personal session status, comply with usage policies",
           badge: "User",
           color: "bg-green-500",
-          icon: Wifi,
+          icon: User,
           responsibilities: [
             "Connect to WiFi network",
             "Access internet within plan limits",
@@ -155,7 +117,7 @@ const Index = () => {
         )}
         
         {/* Sidebar */}
-        {(userRole === 'admin' || userRole === 'coordinator') && (
+        {(isAdmin || isCoordinator) && (
           <div className={`${isMobile ? 'fixed' : 'relative'} z-50 ${isMobile && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'} transition-transform duration-300 ease-in-out`}>
             <Sidebar 
               activeView={activeView} 
@@ -176,7 +138,7 @@ const Index = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 lg:space-x-4 min-w-0 flex-1">
                   {/* Mobile Menu Button */}
-                  {isMobile && (userRole === 'admin' || userRole === 'coordinator') && (
+                  {isMobile && (isAdmin || isCoordinator) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -210,29 +172,30 @@ const Index = () => {
                 </div>
                 
                 <div className="flex items-center space-x-2 lg:space-x-4 flex-shrink-0">
+                  {/* Mode Selector */}
+                  <Select value={currentMode} onValueChange={(value: UserMode) => setCurrentMode(value)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="coordinator">Moderator</SelectItem>
+                      <SelectItem value="user">User</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
                   {/* System Status */}
                   <div className="hidden sm:flex items-center space-x-2 bg-green-50 px-2 lg:px-3 py-1 lg:py-2 rounded-lg">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-xs lg:text-sm font-medium text-green-800">Online</span>
+                    <span className="text-xs lg:text-sm font-medium text-green-800">Demo Mode</span>
                   </div>
-                  
-                  {/* Logout Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSignOut}
-                    className="flex items-center space-x-1 lg:space-x-2"
-                  >
-                    <LogOut className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span className="hidden sm:inline">Logout</span>
-                  </Button>
                 </div>
               </div>
             </div>
           </header>
 
           {/* Role Information Panel (for admin/coordinator only) */}
-          {userRole !== 'user' && !isMobile && (
+          {!isUser && !isMobile && (
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
               <div className="px-6 py-3">
                 <Card className="border-blue-200 bg-white/70 backdrop-blur-sm">
@@ -258,6 +221,14 @@ const Index = () => {
         </div>
       </div>
     </SidebarProvider>
+  );
+};
+
+const Index = () => {
+  return (
+    <ModeProvider>
+      <IndexContent />
+    </ModeProvider>
   );
 };
 
