@@ -1,377 +1,296 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wifi, Info, AlertCircle, CheckCircle, ExternalLink } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Wifi, Shield, Crown, User, AlertCircle, Loader2 } from "lucide-react";
 import { signIn, signUp } from "@/lib/auth";
-import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-// Test account credentials
-const testAccounts = [
-  { type: "Admin", email: "admin@hotspotpro.com", password: "admin123456", role: "admin" },
-  { type: "Moderator", email: "moderator@hotspotpro.com", password: "moderator123456", role: "coordinator" },
-  { type: "User", email: "user@hotspotpro.com", password: "user123456", role: "user" }
-];
+import { toast } from "sonner";
 
 const Auth = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState<'admin' | 'coordinator' | 'user'>('user');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("login");
-  const [showTestAccounts, setShowTestAccounts] = useState(false);
-  const [showSetupInstructions, setShowSetupInstructions] = useState(false);
-  
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  
-  // Register form state
-  const [registerEmail, setRegisterEmail] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Redirect if already authenticated
-  useEffect(() => {
-    if (user) {
-      navigate("/");
-    }
-  }, [user, navigate]);
+  if (user) {
+    navigate("/");
+    return null;
+  }
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!loginEmail || !loginPassword) {
-      toast.error("Email and password are required");
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      setError("Please fill in all fields");
       return;
     }
-    
+
     setIsLoading(true);
-    
+    setError("");
+
     try {
-      await signIn(loginEmail, loginPassword);
-      toast.success("Login successful");
+      await signIn(email, password);
+      toast.success("Successfully signed in!");
       navigate("/");
     } catch (error: any) {
-      console.error("Login error:", error);
-      toast.error(error.message || "Login failed");
+      console.error("Sign in error:", error);
+      setError(error.message || "Failed to sign in");
+      toast.error(error.message || "Failed to sign in");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!registerEmail || !registerPassword || !fullName) {
-      toast.error("All fields are required");
+  const handleSignUp = async () => {
+    if (!email || !password || !fullName) {
+      setError("Please fill in all fields");
       return;
     }
-    
-    if (registerPassword.length < 6) {
-      toast.error("Password must be at least 6 characters");
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters long");
       return;
     }
-    
-    if (registerPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-    
+
     setIsLoading(true);
-    
+    setError("");
+
     try {
-      await signUp(registerEmail, registerPassword, fullName);
-      toast.success("Registration successful! Please check your email for verification if required.");
-      setActiveTab("login");
-      // Clear form fields
-      setRegisterEmail("");
-      setRegisterPassword("");
+      await signUp(email, password, fullName, role);
+      toast.success("Account created successfully! Please sign in.");
+      // Reset form
+      setEmail("");
+      setPassword("");
       setFullName("");
-      setConfirmPassword("");
     } catch (error: any) {
-      console.error("Registration error:", error);
-      toast.error(error.message || "Registration failed");
+      console.error("Sign up error:", error);
+      setError(error.message || "Failed to create account");
+      toast.error(error.message || "Failed to create account");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Function to populate login form with test account credentials
-  const selectTestAccount = (email: string, password: string) => {
-    setLoginEmail(email);
-    setLoginPassword(password);
-    setActiveTab("login");
-    toast.success("Test account credentials loaded");
-  };
-
-  // Function to create test accounts
-  const createTestAccounts = async () => {
+  const createDemoAccounts = async () => {
     setIsLoading(true);
+    setError("");
     
+    const demoAccounts = [
+      { email: "admin@demo.com", password: "admin123", fullName: "Admin User", role: "admin" as const },
+      { email: "coordinator@demo.com", password: "coord123", fullName: "Coordinator User", role: "coordinator" as const },
+      { email: "user@demo.com", password: "user123", fullName: "Regular User", role: "user" as const }
+    ];
+
     try {
-      let successCount = 0;
-      for (const account of testAccounts) {
+      for (const account of demoAccounts) {
         try {
-          await signUp(account.email, account.password, `${account.type} User`, account.role as any);
-          successCount++;
-          toast.success(`Created ${account.type} test account`);
+          await signUp(account.email, account.password, account.fullName, account.role);
         } catch (error: any) {
-          console.log(`Issue with ${account.email}: ${error.message}`);
-          // If account already exists, that's fine
-          if (error.message?.includes("already registered") || error.message?.includes("already exists")) {
-            console.log(`Account ${account.email} already exists`);
-          } else {
-            toast.error(`Error creating ${account.type} account: ${error.message}`);
+          // Ignore "User already registered" errors
+          if (!error.message?.includes("User already registered")) {
+            throw error;
           }
         }
       }
-      
-      if (successCount > 0) {
-        toast.success("Test accounts created successfully!");
-      } else {
-        toast.info("Test accounts already exist or there was an issue creating them.");
-      }
-      
-      // Auto-select the admin account for convenience
-      selectTestAccount(testAccounts[0].email, testAccounts[0].password);
-      
+      toast.success("Demo accounts created! Use admin@demo.com / admin123 to sign in.");
     } catch (error: any) {
-      console.error("Error creating test accounts:", error);
-      toast.error(`Error creating test accounts: ${error.message}`);
+      console.error("Demo account creation error:", error);
+      setError(error.message || "Failed to create demo accounts");
+      toast.error(error.message || "Failed to create demo accounts");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-400 p-4">
-      <Card className="w-full max-w-md bg-white/95 backdrop-blur-sm shadow-xl">
-        <CardHeader className="space-y-1 flex flex-col items-center text-center">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-3 rounded-xl shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <div className="bg-blue-600 p-3 rounded-xl">
               <Wifi className="h-8 w-8 text-white" />
             </div>
-            <div>
-              <h1 className="font-bold text-2xl text-gray-900">HotSpot Pro</h1>
-              <p className="text-sm text-gray-600">WiFi Management System</p>
-            </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome</CardTitle>
-          <CardDescription className="text-center">
-            Sign in to manage your WiFi hotspot system
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert className="bg-red-50 border-red-200">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle className="text-red-800">Setup Required</AlertTitle>
-            <AlertDescription className="text-red-700 text-sm space-y-2">
-              <p>Authentication is not properly configured. Please complete these steps:</p>
-              <div className="space-y-1 text-xs">
-                <p>1. Enable email authentication in Supabase</p>
-                <p>2. Run the database migration SQL</p>
-                <p>3. Set up the site URL configuration</p>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="w-full mt-2"
-                onClick={() => setShowSetupInstructions(!showSetupInstructions)}
-              >
-                <ExternalLink className="h-3 w-3 mr-2" />
-                {showSetupInstructions ? "Hide" : "Show"} Setup Instructions
-              </Button>
-            </AlertDescription>
-          </Alert>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">WiFi Hotspot Manager</h1>
+          <p className="text-gray-600">Comprehensive hotspot management system</p>
+        </div>
 
-          {showSetupInstructions && (
-            <Alert className="bg-blue-50 border-blue-200">
-              <CheckCircle className="h-4 w-4 text-blue-600" />
-              <AlertTitle className="text-blue-800">Step-by-Step Setup</AlertTitle>
-              <AlertDescription className="text-blue-700 text-sm space-y-3">
-                <div>
-                  <p className="font-semibold">Step 1: Enable Email Authentication</p>
-                  <p>Go to Supabase Dashboard → Authentication → Settings → Email Auth</p>
-                  <p>Enable "Enable email confirmations" and "Enable email signups"</p>
-                </div>
-                <div>
-                  <p className="font-semibold">Step 2: Run Database Migration</p>
-                  <p>Go to SQL Editor and run the profiles table creation SQL</p>
-                </div>
-                <div>
-                  <p className="font-semibold">Step 3: Configure Site URL</p>
-                  <p>Set Site URL in Authentication → URL Configuration</p>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
+        <Card className="bg-white shadow-lg border-0">
+          <CardHeader className="space-y-1 pb-4">
+            <CardTitle className="text-2xl text-center">Welcome</CardTitle>
+            <CardDescription className="text-center">
+              Sign in to your account or create a new one
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="signin" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-100">
+                <TabsTrigger value="signin" className="data-[state=active]:bg-white">Sign In</TabsTrigger>
+                <TabsTrigger value="signup" className="data-[state=active]:bg-white">Sign Up</TabsTrigger>
+              </TabsList>
 
-          <div className="mb-4">
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="w-full flex items-center justify-center gap-2 border-dashed"
-              onClick={() => setShowTestAccounts(!showTestAccounts)}
-            >
-              <Info className="h-4 w-4" />
-              {showTestAccounts ? "Hide Demo Accounts" : "Show Demo Accounts"}
-            </Button>
-          </div>
-          
-          {showTestAccounts && (
-            <div className="mb-6 space-y-4">
-              <Alert className="bg-blue-50 border-blue-200">
-                <AlertTitle className="text-blue-800 font-semibold">Demo Accounts Available</AlertTitle>
-                <AlertDescription className="text-blue-700 space-y-3">
-                  <p className="text-sm">Click on an account to automatically fill the login form:</p>
-                  <div className="space-y-2">
-                    {testAccounts.map((account) => (
-                      <Button
-                        key={account.type}
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-between hover:bg-blue-50 border-blue-200"
-                        onClick={() => selectTestAccount(account.email, account.password)}
-                        disabled={isLoading}
-                      >
-                        <span className="font-medium">{account.type}</span>
-                        <span className="text-xs opacity-70 truncate max-w-32">{account.email}</span>
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="pt-2 border-t border-blue-200">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full border-dashed border-blue-400 hover:bg-blue-50"
-                      onClick={createTestAccounts}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? "Creating accounts..." : "Create Demo Accounts"}
-                    </Button>
-                    <p className="text-xs mt-2 text-blue-600 text-center">
-                      Creates demo accounts in the database if they don't exist
-                    </p>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
-          
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login" className="font-medium">Sign In</TabsTrigger>
-              <TabsTrigger value="register" className="font-medium">Sign Up</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
+              {error && (
+                <Alert variant="destructive" className="mb-4 bg-red-50 border-red-200">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <TabsContent value="signin" className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="font-medium">Email Address</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="your@email.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    required
-                    disabled={isLoading}
-                    className="h-11"
+                  <Label htmlFor="signin-email">Email</Label>
+                  <Input
+                    id="signin-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-white border-gray-200"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="font-medium">Password</Label>
-                  <Input 
-                    id="password" 
+                  <Label htmlFor="signin-password">Password</Label>
+                  <Input
+                    id="signin-password"
                     type="password"
                     placeholder="Enter your password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    required
-                    disabled={isLoading}
-                    className="h-11"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-white border-gray-200"
                   />
                 </div>
-                <Button type="submit" className="w-full h-11 font-medium" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign In"}
+                <Button 
+                  onClick={handleSignIn} 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing In...
+                    </>
+                  ) : (
+                    "Sign In"
+                  )}
                 </Button>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="register">
-              <form onSubmit={handleRegister} className="space-y-4">
+              </TabsContent>
+
+              <TabsContent value="signup" className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="fullName" className="font-medium">Full Name</Label>
-                  <Input 
-                    id="fullName" 
-                    placeholder="John Doe"
+                  <Label htmlFor="signup-name">Full Name</Label>
+                  <Input
+                    id="signup-name"
+                    type="text"
+                    placeholder="Enter your full name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    required
-                    disabled={isLoading}
-                    className="h-11"
+                    className="bg-white border-gray-200"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="registerEmail" className="font-medium">Email Address</Label>
-                  <Input 
-                    id="registerEmail" 
-                    type="email" 
-                    placeholder="your@email.com"
-                    value={registerEmail}
-                    onChange={(e) => setRegisterEmail(e.target.value)}
-                    required
-                    disabled={isLoading}
-                    className="h-11"
+                  <Label htmlFor="signup-email">Email</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-white border-gray-200"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="registerPassword" className="font-medium">Password</Label>
-                  <Input 
-                    id="registerPassword" 
+                  <Label htmlFor="signup-password">Password</Label>
+                  <Input
+                    id="signup-password"
                     type="password"
-                    placeholder="At least 6 characters"
-                    value={registerPassword}
-                    onChange={(e) => setRegisterPassword(e.target.value)}
-                    required
-                    disabled={isLoading}
-                    minLength={6}
-                    className="h-11"
+                    placeholder="Enter your password (min 6 characters)"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-white border-gray-200"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword" className="font-medium">Confirm Password</Label>
-                  <Input 
-                    id="confirmPassword" 
-                    type="password"
-                    placeholder="Confirm your password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    disabled={isLoading}
-                    className="h-11"
-                  />
+                  <Label htmlFor="role">Role</Label>
+                  <select
+                    id="role"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as 'admin' | 'coordinator' | 'user')}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="user">User</option>
+                    <option value="coordinator">Coordinator</option>
+                    <option value="admin">Admin</option>
+                  </select>
                 </div>
-                <Button type="submit" className="w-full h-11 font-medium" disabled={isLoading}>
-                  {isLoading ? "Creating account..." : "Create Account"}
+                <Button 
+                  onClick={handleSignUp} 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating Account...
+                    </>
+                  ) : (
+                    "Create Account"
+                  )}
                 </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-        <CardFooter className="flex justify-center border-t border-gray-200 pt-6">
-          <p className="text-sm text-gray-600 text-center">
-            © 2025 HotSpot Pro. Secure WiFi Management Platform.
-          </p>
-        </CardFooter>
-      </Card>
+              </TabsContent>
+            </Tabs>
+
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <Button
+                onClick={createDemoAccounts}
+                variant="outline"
+                className="w-full bg-gray-50 hover:bg-gray-100 border-gray-200"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating Demo Accounts...
+                  </>
+                ) : (
+                  "Create Demo Accounts"
+                )}
+              </Button>
+              <p className="text-xs text-gray-500 text-center mt-2">
+                Creates test accounts for all roles (admin, coordinator, user)
+              </p>
+            </div>
+
+            {/* Role Information */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">System Roles:</h4>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center space-x-2">
+                  <Crown className="h-4 w-4 text-red-500" />
+                  <span className="text-gray-700"><strong>Admin:</strong> Full system access</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-4 w-4 text-blue-500" />
+                  <span className="text-gray-700"><strong>Coordinator:</strong> User & voucher management</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <User className="h-4 w-4 text-green-500" />
+                  <span className="text-gray-700"><strong>User:</strong> Basic access</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

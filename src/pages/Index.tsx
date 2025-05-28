@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { Navigate } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
 import { UserMonitoring } from "@/components/UserMonitoring";
@@ -13,18 +14,42 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wifi, Shield, Users, BarChart3, Menu, Crown, User } from "lucide-react";
-import { ModeProvider, useMode, UserMode } from "@/contexts/ModeContext";
+import { Wifi, Shield, Users, BarChart3, Menu, Crown, User, LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { signOut } from "@/lib/auth";
+import { toast } from "sonner";
 
 export type ActiveView = 'dashboard' | 'users' | 'vouchers' | 'revenue' | 'analytics' | 'settings';
 
-const IndexContent = () => {
+const Index = () => {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { currentMode, setCurrentMode, isAdmin, isCoordinator, isUser } = useMode();
+  const { user, profile, isLoading, isAdmin, isCoordinator, isUser } = useAuth();
   const isMobile = useIsMobile();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="bg-white p-6 rounded-lg shadow-lg">
+          <p className="text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success("Successfully signed out");
+    } catch (error: any) {
+      toast.error("Failed to sign out");
+    }
+  };
 
   const renderActiveView = () => {
     if (isUser) {
@@ -54,51 +79,50 @@ const IndexContent = () => {
   };
 
   const getRoleInfo = () => {
-    switch (currentMode) {
-      case 'admin':
-        return {
-          name: "System Administrator",
-          description: "Full system configuration, user & location management, marketing campaigns, advanced reporting",
-          badge: "Administrator",
-          color: "bg-red-500",
-          icon: Crown,
-          responsibilities: [
-            "Configure system-wide settings & security",
-            "Manage all user accounts & roles",
-            "Oversee hotspot locations",
-            "Create marketing campaigns",
-            "Generate comprehensive reports"
-          ]
-        };
-      case 'coordinator':
-        return {
-          name: "Moderator / Operator",
-          description: "User management, voucher/QR generation, session monitoring, billing tasks, customer support",
-          badge: "Moderator",
-          color: "bg-blue-500",
-          icon: Shield,
-          responsibilities: [
-            "Generate vouchers & QR codes",
-            "Monitor active sessions",
-            "Handle billing tasks",
-            "Provide customer support",
-            "Manage user sessions"
-          ]
-        };
-      case 'user':
-        return {
-          name: "End User / Customer",
-          description: "Connect using vouchers/QR codes, view personal session status, comply with usage policies",
-          badge: "User",
-          color: "bg-green-500",
-          icon: User,
-          responsibilities: [
-            "Connect to WiFi network",
-            "Access internet within plan limits",
-            "View session status",
-            "Comply with usage policies"
-          ]
-        };
+    if (isAdmin) {
+      return {
+        name: "System Administrator",
+        description: "Full system configuration, user & location management, marketing campaigns, advanced reporting",
+        badge: "Administrator",
+        color: "bg-red-500",
+        icon: Crown,
+        responsibilities: [
+          "Configure system-wide settings & security",
+          "Manage all user accounts & roles",
+          "Oversee hotspot locations",
+          "Create marketing campaigns",
+          "Generate comprehensive reports"
+        ]
+      };
+    } else if (isCoordinator) {
+      return {
+        name: "Moderator / Operator",
+        description: "User management, voucher/QR generation, session monitoring, billing tasks, customer support",
+        badge: "Moderator",
+        color: "bg-blue-500",
+        icon: Shield,
+        responsibilities: [
+          "Generate vouchers & QR codes",
+          "Monitor active sessions",
+          "Handle billing tasks",
+          "Provide customer support",
+          "Manage user sessions"
+        ]
+      };
+    } else {
+      return {
+        name: "End User / Customer",
+        description: "Connect using vouchers/QR codes, view personal session status, comply with usage policies",
+        badge: "User",
+        color: "bg-green-500",
+        icon: User,
+        responsibilities: [
+          "Connect to WiFi network",
+          "Access internet within plan limits",
+          "View session status",
+          "Comply with usage policies"
+        ]
+      };
     }
   };
 
@@ -172,23 +196,24 @@ const IndexContent = () => {
                 </div>
                 
                 <div className="flex items-center space-x-2 lg:space-x-4 flex-shrink-0">
-                  {/* Mode Selector */}
-                  <Select value={currentMode} onValueChange={(value: UserMode) => setCurrentMode(value)}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="coordinator">Moderator</SelectItem>
-                      <SelectItem value="user">User</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  {/* System Status */}
-                  <div className="hidden sm:flex items-center space-x-2 bg-green-50 px-2 lg:px-3 py-1 lg:py-2 rounded-lg">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-xs lg:text-sm font-medium text-green-800">Demo Mode</span>
+                  {/* User Info */}
+                  <div className="hidden sm:flex items-center space-x-2 bg-gray-50 px-2 lg:px-3 py-1 lg:py-2 rounded-lg">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-xs lg:text-sm font-medium text-gray-800">
+                      {profile?.full_name || user.email}
+                    </span>
                   </div>
+                  
+                  {/* Sign Out Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSignOut}
+                    className="bg-white hover:bg-gray-50 border-gray-200"
+                  >
+                    <LogOut className="h-4 w-4 mr-1" />
+                    <span className="hidden sm:inline">Sign Out</span>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -221,14 +246,6 @@ const IndexContent = () => {
         </div>
       </div>
     </SidebarProvider>
-  );
-};
-
-const Index = () => {
-  return (
-    <ModeProvider>
-      <IndexContent />
-    </ModeProvider>
   );
 };
 

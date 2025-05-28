@@ -1,5 +1,6 @@
 
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useContext } from 'react';
+import { useAuth } from './AuthContext';
 
 export type UserMode = 'admin' | 'coordinator' | 'user';
 
@@ -12,19 +13,23 @@ interface ModeContextProps {
 }
 
 const ModeContext = createContext<ModeContextProps>({
-  currentMode: 'admin',
+  currentMode: 'user',
   setCurrentMode: () => {},
-  isAdmin: true,
+  isAdmin: false,
   isCoordinator: false,
-  isUser: false,
+  isUser: true,
 });
 
 export const ModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentMode, setCurrentMode] = useState<UserMode>('admin');
+  const { isAdmin, isCoordinator, isUser } = useAuth();
 
-  const isAdmin = currentMode === 'admin';
-  const isCoordinator = currentMode === 'coordinator';
-  const isUser = currentMode === 'user';
+  // Determine current mode based on auth
+  const currentMode: UserMode = isAdmin ? 'admin' : isCoordinator ? 'coordinator' : 'user';
+
+  // This function is kept for compatibility but doesn't actually change mode
+  const setCurrentMode = (mode: UserMode) => {
+    console.warn('Mode switching is now handled by authentication. Please sign in with the appropriate role.');
+  };
 
   return (
     <ModeContext.Provider value={{ 
